@@ -1,0 +1,156 @@
+"use client";
+
+import React from "react";
+import { Bell, Search, LogOut, User, ChevronRight } from "lucide-react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+
+type HeaderProps = {
+  user: {
+    name: string;
+    email: string;
+    role: string;
+  };
+};
+
+const pathLabels: Record<string, string> = {
+  "/": "Dashboard",
+  "/inventory": "Inventory",
+  "/inventory/products": "Products",
+  "/inventory/stock": "Stock Levels",
+  "/inventory/transfers": "Transfers",
+  "/inventory/adjustments": "Adjustments",
+  "/inventory/reports": "Reports",
+  "/sales": "Sales",
+  "/sales/orders": "Orders",
+  "/sales/pos": "Point of Sale",
+  "/sales/customers": "Customers",
+  "/sales/reports": "Reports",
+  "/consignment": "Consignment",
+  "/settings": "Settings",
+};
+
+function getBreadcrumbs(pathname: string) {
+  const segments = pathname.split("/").filter(Boolean);
+  const crumbs: { label: string; href: string }[] = [{ label: "Home", href: "/" }];
+
+  let currentPath = "";
+  for (const segment of segments) {
+    currentPath += `/${segment}`;
+    const label = pathLabels[currentPath] || segment.charAt(0).toUpperCase() + segment.slice(1);
+    crumbs.push({ label, href: currentPath });
+  }
+
+  return crumbs;
+}
+
+export function Header({ user }: HeaderProps) {
+  const pathname = usePathname();
+  const breadcrumbs = getBreadcrumbs(pathname);
+  const pageTitle = breadcrumbs[breadcrumbs.length - 1]?.label || "Dashboard";
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-6">
+      {/* Left: Breadcrumbs */}
+      <div className="flex flex-col">
+        <nav className="flex items-center text-xs text-muted-foreground">
+          {breadcrumbs.map((crumb, i) => (
+            <React.Fragment key={crumb.href}>
+              {i > 0 && <ChevronRight className="h-3 w-3 mx-1" />}
+              {i < breadcrumbs.length - 1 ? (
+                <Link href={crumb.href} className="hover:text-foreground transition-colors">
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className="text-foreground font-medium">{crumb.label}</span>
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+        <h1 className="text-lg font-semibold">{pageTitle}</h1>
+      </div>
+
+      {/* Right: Search, Notifications, User */}
+      <div className="flex items-center gap-3">
+        {/* Search */}
+        <Button variant="outline" size="sm" className="hidden md:flex gap-2 text-muted-foreground">
+          <Search className="h-4 w-4" />
+          <span className="text-xs">Search...</span>
+          <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+            <span className="text-xs">⌘</span>K
+          </kbd>
+        </Button>
+
+        {/* Notifications */}
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
+            3
+          </span>
+        </Button>
+
+        {/* User menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="gap-2 px-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden md:flex flex-col items-start">
+                <span className="text-sm font-medium">{user.name}</span>
+                <span className="text-xs text-muted-foreground capitalize">{user.role.toLowerCase()}</span>
+              </div>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col">
+                <span>{user.name}</span>
+                <span className="text-xs font-normal text-muted-foreground">{user.email}</span>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" />
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => {
+                // Sign out via form POST
+                const form = document.createElement("form");
+                form.method = "POST";
+                form.action = "/api/auth/signout";
+                document.body.appendChild(form);
+                form.submit();
+              }}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
