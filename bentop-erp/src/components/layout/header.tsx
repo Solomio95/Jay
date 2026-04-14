@@ -28,6 +28,8 @@ const pathLabels: Record<string, string> = {
   "/": "Dashboard",
   "/inventory": "Inventory",
   "/inventory/products": "Products",
+  "/inventory/products/new": "New Product",
+  "/inventory/categories": "Categories",
   "/inventory/stock": "Stock Levels",
   "/inventory/transfers": "Transfers",
   "/inventory/adjustments": "Adjustments",
