@@ -40,8 +40,10 @@ const navItems: NavItem[] = [
     href: "/inventory",
     icon: <Package className="h-5 w-5" />,
     children: [
+      { title: "Overview", href: "/inventory" },
       { title: "Products", href: "/inventory/products" },
       { title: "Categories", href: "/inventory/categories" },
+      { title: "Locations", href: "/inventory/locations" },
       { title: "Stock Levels", href: "/inventory/stock" },
       { title: "Transfers", href: "/inventory/transfers" },
       { title: "Adjustments", href: "/inventory/adjustments" },

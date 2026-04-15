@@ -47,3 +47,10 @@ export function generateBatchNumber(): string {
   const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
   return `BT-${dateStr}-${seq}`;
 }
+
+export function generateTransferNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `TR-${dateStr}-${seq}`;
+}

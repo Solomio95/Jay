@@ -36,6 +36,9 @@ model User {
   acknowledgedAlerts StockAlert[]
   ordersCreated      Order[]
   statusChanges      OrderStatusHistory[]
+  transfersRequested StockTransfer[]  @relation("TransferRequested")
+  transfersApproved  StockTransfer[]  @relation("TransferApproved")
+  transfersCompleted StockTransfer[]  @relation("TransferCompleted")
 
   @@map("users")
 }
@@ -119,12 +122,13 @@ model ProductVariant {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  product     Product        @relation(fields: [productId], references: [id])
-  batches     Batch[]
-  stockLevels StockLevel[]
-  movements   StockMovement[]
-  alerts      StockAlert[]
-  orderItems  OrderItem[]
+  product       Product             @relation(fields: [productId], references: [id])
+  batches       Batch[]
+  stockLevels   StockLevel[]
+  movements     StockMovement[]
+  alerts        StockAlert[]
+  orderItems    OrderItem[]
+  transferItems StockTransferItem[]
 
   @@index([productId])
   @@map("product_variants")
@@ -142,10 +146,11 @@ model Batch {
   notes            String?
   createdAt        DateTime  @default(now())
 
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariant ProductVariant     @relation(fields: [productVariantId], references: [id])
   stockLevels    StockLevel[]
   movements      StockMovement[]
   orderItems     OrderItem[]
+  transferItems  StockTransferItem[]
 
   @@index([productVariantId])
   @@map("batches")
@@ -175,6 +180,8 @@ model Location {
   movementsTo    StockMovement[] @relation("ToLocation")
   alerts         StockAlert[]
   orders         Order[]
+  transfersFrom  StockTransfer[] @relation("TransferFrom")
+  transfersTo    StockTransfer[] @relation("TransferTo")
 
   @@map("locations")
 }
@@ -262,6 +269,60 @@ model StockAlert {
 
   @@index([isAcknowledged])
   @@map("stock_alerts")
+}
+
+enum TransferStatus {
+  REQUESTED
+  APPROVED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model StockTransfer {
+  id             String         @id @default(cuid())
+  transferNumber String         @unique
+  fromLocationId String
+  toLocationId   String
+  status         TransferStatus @default(REQUESTED)
+  notes          String?
+  requestedById  String
+  approvedById   String?
+  completedById  String?
+  requestedAt    DateTime       @default(now())
+  approvedAt     DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  fromLocation Location            @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocation   Location            @relation("TransferTo", fields: [toLocationId], references: [id])
+  requestedBy  User                @relation("TransferRequested", fields: [requestedById], references: [id])
+  approvedBy   User?               @relation("TransferApproved", fields: [approvedById], references: [id])
+  completedBy  User?               @relation("TransferCompleted", fields: [completedById], references: [id])
+  items        StockTransferItem[]
+
+  @@index([status])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@index([createdAt])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id               String  @id @default(cuid())
+  transferId       String
+  productVariantId String
+  batchId          String?
+  quantity         Int
+
+  transfer       StockTransfer  @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  batch          Batch?         @relation(fields: [batchId], references: [id])
+
+  @@index([transferId])
+  @@map("stock_transfer_items")
 }
 
 // ─── Sales & Orders ─────────────────────────────────────────────
