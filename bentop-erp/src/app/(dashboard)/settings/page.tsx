@@ -1,13 +1,37 @@
-import { Settings } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const settingsSections = [
-  { title: "Company Profile", description: "Company name, logo, address, and tax ID configuration" },
-  { title: "User Management", description: "Manage users, roles, and permissions" },
-  { title: "Locations", description: "Configure warehouses, retail stores, and consignment locations" },
-  { title: "Sales Channels", description: "Manage sales channel configuration and commission rates" },
-  { title: "Currency & Exchange Rates", description: "Configure currencies and manage exchange rates" },
-  { title: "Notifications", description: "Set up email and in-app notification preferences" },
+  {
+    title: "Company Profile",
+    description: "Company name, logo, address, and tax ID configuration",
+    href: null,
+  },
+  {
+    title: "User Management",
+    description: "Manage users, roles, and permissions",
+    href: null,
+  },
+  {
+    title: "Locations",
+    description: "Configure warehouses, retail stores, and consignment locations",
+    href: "/inventory/locations",
+  },
+  {
+    title: "Sales Channels",
+    description: "Manage sales channel configuration and commission rates",
+    href: "/settings/channels",
+  },
+  {
+    title: "Currency & Exchange Rates",
+    description: "Configure currencies and manage exchange rates",
+    href: null,
+  },
+  {
+    title: "Notifications",
+    description: "Set up email and in-app notification preferences",
+    href: null,
+  },
 ];
 
 export default function SettingsPage() {
@@ -18,14 +42,29 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">System configuration and administration.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {settingsSections.map((section) => (
-          <Card key={section.title} className="cursor-pointer hover:border-primary/50 transition-colors">
-            <CardHeader>
-              <CardTitle className="text-base">{section.title}</CardTitle>
-              <CardDescription>{section.description}</CardDescription>
-            </CardHeader>
-          </Card>
-        ))}
+        {settingsSections.map((section) => {
+          const content = (
+            <Card
+              className={
+                section.href
+                  ? "cursor-pointer hover:border-primary/50 transition-colors h-full"
+                  : "opacity-60 h-full"
+              }
+            >
+              <CardHeader>
+                <CardTitle className="text-base">{section.title}</CardTitle>
+                <CardDescription>{section.description}</CardDescription>
+              </CardHeader>
+            </Card>
+          );
+          return section.href ? (
+            <Link key={section.title} href={section.href}>
+              {content}
+            </Link>
+          ) : (
+            <div key={section.title}>{content}</div>
+          );
+        })}
       </div>
     </div>
   );

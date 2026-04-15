@@ -1,23 +1,36 @@
-import { Store } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { prisma } from "@/lib/db";
+import { POSClient } from "@/components/sales/pos-client";
 
-export default function POSPage() {
+export default async function POSPage() {
+  const [locations, channels] = await Promise.all([
+    prisma.location.findMany({
+      where: { isActive: true },
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, type: true },
+    }),
+    prisma.salesChannel.findMany({
+      where: { isActive: true, type: { in: ["PHYSICAL_STORE"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Point of Sale</h2>
-        <p className="text-muted-foreground">Retail store POS interface.</p>
+        <p className="text-muted-foreground">
+          Retail store checkout. Scan a barcode or search a product to start a sale.
+        </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>POS Terminal</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            The POS interface will be built in Step 4. This will include quick product search, barcode scanning, cart management, and receipt generation.
-          </p>
-        </CardContent>
-      </Card>
+
+      {locations.length === 0 ? (
+        <div className="text-sm text-destructive">
+          No active locations configured.
+        </div>
+      ) : (
+        <POSClient locations={locations} channels={channels} />
+      )}
     </div>
   );
 }

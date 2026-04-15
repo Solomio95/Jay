@@ -55,6 +55,7 @@ const navItems: NavItem[] = [
     href: "/sales",
     icon: <ShoppingCart className="h-5 w-5" />,
     children: [
+      { title: "Overview", href: "/sales" },
       { title: "Orders", href: "/sales/orders" },
       { title: "POS", href: "/sales/pos" },
       { title: "Customers", href: "/sales/customers" },

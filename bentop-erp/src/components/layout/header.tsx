@@ -38,13 +38,15 @@ const pathLabels: Record<string, string> = {
   "/inventory/transfers/new": "New Transfer",
   "/inventory/adjustments": "Adjustments",
   "/inventory/reports": "Reports",
-  "/sales": "Sales",
+  "/sales": "Sales Overview",
   "/sales/orders": "Orders",
+  "/sales/orders/new": "New Order",
   "/sales/pos": "Point of Sale",
   "/sales/customers": "Customers",
   "/sales/reports": "Reports",
   "/consignment": "Consignment",
   "/settings": "Settings",
+  "/settings/channels": "Sales Channels",
 };
 
 function getBreadcrumbs(pathname: string) {
