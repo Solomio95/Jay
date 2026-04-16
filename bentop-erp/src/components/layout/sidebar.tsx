@@ -66,6 +66,10 @@ const navItems: NavItem[] = [
     title: "Consignment",
     href: "/consignment",
     icon: <Boxes className="h-5 w-5" />,
+    children: [
+      { title: "Overview", href: "/consignment" },
+      { title: "New Shipment", href: "/consignment/shipments/new" },
+    ],
   },
   {
     title: "Settings",

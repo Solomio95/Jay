@@ -54,3 +54,10 @@ export function generateTransferNumber(): string {
   const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
   return `TR-${dateStr}-${seq}`;
 }
+
+export function generateConsignmentNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `CN-${dateStr}-${seq}`;
+}
