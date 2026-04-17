@@ -251,8 +251,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               )}
               <div className="flex justify-between pt-2 border-t font-semibold text-base">
                 <span>Total</span>
-                <span>{formatCurrency(Number(order.totalAmount), order.currency)}</span>
+                <span>
+                  {formatCurrency(Number(order.totalAmount), order.currency)}
+                </span>
               </div>
+              {order.currency !== "MYR" && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>MYR equivalent</span>
+                  <span>
+                    {formatCurrency(
+                      Number(order.totalAmount) * Number(order.exchangeRateToMyr),
+                      "MYR"
+                    )}
+                  </span>
+                </div>
+              )}
               {order.paymentMethod && (
                 <div className="pt-2 text-xs text-muted-foreground">
                   Paid via {order.paymentMethod}

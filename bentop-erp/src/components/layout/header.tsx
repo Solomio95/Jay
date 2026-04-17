@@ -49,6 +49,7 @@ const pathLabels: Record<string, string> = {
   "/consignment/shipments/new": "New Shipment",
   "/settings": "Settings",
   "/settings/channels": "Sales Channels",
+  "/settings/currency": "Currency & Exchange Rates",
 };
 
 function getBreadcrumbs(pathname: string) {

@@ -34,6 +34,22 @@ export function formatDateTime(date: Date | string): string {
   }).format(d);
 }
 
+export function convertToMyr(amount: number, currency: string, exchangeRateToMyr: number): number {
+  if (currency === "MYR") return amount;
+  return amount * exchangeRateToMyr;
+}
+
+export function formatCurrencyWithMyr(
+  amount: number,
+  currency: string,
+  exchangeRateToMyr: number
+): string {
+  const formatted = formatCurrency(amount, currency);
+  if (currency === "MYR") return formatted;
+  const myrAmount = convertToMyr(amount, currency, exchangeRateToMyr);
+  return `${formatted} (${formatCurrency(myrAmount, "MYR")})`;
+}
+
 export function generateOrderNumber(): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");

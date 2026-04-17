@@ -176,7 +176,15 @@ export default async function OrdersPage({
                       </TableCell>
                       <TableCell className="text-right">{o._count.items}</TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(Number(o.totalAmount), o.currency)}
+                        <div>{formatCurrency(Number(o.totalAmount), o.currency)}</div>
+                        {o.currency !== "MYR" && (
+                          <div className="text-xs text-muted-foreground font-normal">
+                            ≈ {formatCurrency(
+                              Number(o.totalAmount) * Number(o.exchangeRateToMyr),
+                              "MYR"
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatDateTime(o.createdAt)}

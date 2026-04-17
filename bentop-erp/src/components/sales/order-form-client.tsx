@@ -91,6 +91,24 @@ export function OrderFormClient({ locations, channels, defaultCustomerId, defaul
     };
   }, [customerSearch]);
 
+  // Auto-fetch latest exchange rate when currency changes
+  useEffect(() => {
+    if (currency === "MYR") {
+      setExchangeRate("1");
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/v1/exchange-rates/latest?from=${currency}&to=MYR`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.data?.rate) {
+          setExchangeRate(String(Number(data.data.rate)));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currency]);
+
   const pickCustomer = (c: CustomerOption) => {
     setCustomer(c);
     setCustomerId(c.id);

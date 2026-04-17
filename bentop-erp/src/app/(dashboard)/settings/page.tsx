@@ -25,7 +25,7 @@ const settingsSections = [
   {
     title: "Currency & Exchange Rates",
     description: "Configure currencies and manage exchange rates",
-    href: null,
+    href: "/settings/currency",
   },
   {
     title: "Notifications",
