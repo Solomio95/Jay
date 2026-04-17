@@ -79,7 +79,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>(() => {
@@ -180,6 +180,7 @@ export function Sidebar() {
                               <Link
                                 key={child.href}
                                 href={child.href}
+                                onClick={onNavigate}
                                 className={cn(
                                   "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
                                   pathname === child.href

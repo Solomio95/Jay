@@ -80,3 +80,13 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 767px) {
+  .touch-action-pan {
+    touch-action: pan-y;
+  }
+}

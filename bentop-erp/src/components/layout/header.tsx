@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell, Search, LogOut, User, ChevronRight } from "lucide-react";
+import { Bell, Search, LogOut, User, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ type HeaderProps = {
     email: string;
     role: string;
   };
+  onMenuToggle?: () => void;
 };
 
 const pathLabels: Record<string, string> = {
@@ -67,7 +68,7 @@ function getBreadcrumbs(pathname: string) {
   return crumbs;
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, onMenuToggle }: HeaderProps) {
   const pathname = usePathname();
   const breadcrumbs = getBreadcrumbs(pathname);
   const pageTitle = breadcrumbs[breadcrumbs.length - 1]?.label || "Dashboard";
@@ -79,10 +80,21 @@ export function Header({ user }: HeaderProps) {
     .slice(0, 2);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-6">
-      {/* Left: Breadcrumbs */}
-      <div className="flex flex-col">
-        <nav className="flex items-center text-xs text-muted-foreground">
+    <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-3 md:px-6">
+      {/* Left: Menu + Breadcrumbs */}
+      <div className="flex items-center gap-2">
+        {onMenuToggle && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={onMenuToggle}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="flex flex-col">
+        <nav className="hidden sm:flex items-center text-xs text-muted-foreground">
           {breadcrumbs.map((crumb, i) => (
             <React.Fragment key={crumb.href}>
               {i > 0 && <ChevronRight className="h-3 w-3 mx-1" />}
@@ -96,7 +108,8 @@ export function Header({ user }: HeaderProps) {
             </React.Fragment>
           ))}
         </nav>
-        <h1 className="text-lg font-semibold">{pageTitle}</h1>
+        <h1 className="text-base md:text-lg font-semibold truncate">{pageTitle}</h1>
+        </div>
       </div>
 
       {/* Right: Search, Notifications, User */}
