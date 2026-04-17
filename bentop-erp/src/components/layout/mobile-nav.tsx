@@ -28,8 +28,8 @@ export function MobileBottomNav() {
   };
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t safe-bottom">
-      <div className="flex items-center justify-around h-14">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t safe-bottom" aria-label="Mobile navigation">
+      <div className="flex items-center justify-around h-14" role="menubar">
         {items.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
@@ -37,6 +37,9 @@ export function MobileBottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.title}
+              aria-current={active ? "page" : undefined}
+              role="menuitem"
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 px-2 py-1 min-w-[56px] transition-colors",
                 active
@@ -44,7 +47,7 @@ export function MobileBottomNav() {
                   : "text-muted-foreground"
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" aria-hidden="true" />
               <span className="text-[10px] font-medium">{item.title}</span>
             </Link>
           );

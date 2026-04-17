@@ -108,6 +108,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
           collapsed ? "w-16" : "w-64"
         )}
+        aria-label="Main navigation"
       >
         {/* Logo */}
         <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
@@ -158,6 +159,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                       <>
                         <button
                           onClick={() => toggleExpanded(item.title)}
+                          aria-expanded={expanded}
                           className={cn(
                             "flex items-center w-full gap-3 px-3 h-10 rounded-md text-sm font-medium transition-colors",
                             active
@@ -165,9 +167,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                           )}
                         >
-                          {item.icon}
+                          <span aria-hidden="true">{item.icon}</span>
                           <span className="flex-1 text-left">{item.title}</span>
                           <ChevronDown
+                            aria-hidden="true"
                             className={cn(
                               "h-4 w-4 transition-transform",
                               expanded && "rotate-180"
@@ -181,6 +184,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                                 key={child.href}
                                 href={child.href}
                                 onClick={onNavigate}
+                                aria-current={pathname === child.href ? "page" : undefined}
                                 className={cn(
                                   "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
                                   pathname === child.href
@@ -239,13 +243,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         <div className="border-t border-sidebar-border p-2">
           <button
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="flex items-center justify-center w-full h-9 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             ) : (
               <>
-                <ChevronLeft className="h-4 w-4 mr-2" />
+                <ChevronLeft className="h-4 w-4 mr-2" aria-hidden="true" />
                 <span className="text-xs">Collapse</span>
               </>
             )}

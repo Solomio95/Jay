@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { variantGenerateSchema, variantUpdateSchema } from "@/lib/validators/product";
 import { generateSku, generateBarcode } from "@/lib/sku";
+import { handleApiError } from "@/lib/api-error";
 
 export async function GET(
   _request: NextRequest,

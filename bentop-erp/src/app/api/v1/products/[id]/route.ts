@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { productUpdateSchema } from "@/lib/validators/product";
 import { generateSlug } from "@/lib/sku";
+import { handleApiError } from "@/lib/api-error";
 
 export async function GET(
   _request: NextRequest,

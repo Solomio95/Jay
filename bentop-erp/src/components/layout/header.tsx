@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { Bell, Search, LogOut, User, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -89,24 +88,27 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
             size="icon"
             className="md:hidden"
             onClick={onMenuToggle}
+            aria-label="Toggle navigation menu"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
         )}
         <div className="flex flex-col">
-        <nav className="hidden sm:flex items-center text-xs text-muted-foreground">
+        <nav className="hidden sm:flex items-center text-xs text-muted-foreground" aria-label="Breadcrumb">
+          <ol className="flex items-center">
           {breadcrumbs.map((crumb, i) => (
-            <React.Fragment key={crumb.href}>
-              {i > 0 && <ChevronRight className="h-3 w-3 mx-1" />}
+            <li key={crumb.href} className="flex items-center">
+              {i > 0 && <ChevronRight className="h-3 w-3 mx-1" aria-hidden="true" />}
               {i < breadcrumbs.length - 1 ? (
                 <Link href={crumb.href} className="hover:text-foreground transition-colors">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className="text-foreground font-medium">{crumb.label}</span>
+                <span className="text-foreground font-medium" aria-current="page">{crumb.label}</span>
               )}
-            </React.Fragment>
+            </li>
           ))}
+          </ol>
         </nav>
         <h1 className="text-base md:text-lg font-semibold truncate">{pageTitle}</h1>
         </div>
@@ -124,9 +126,9 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
+        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications (3 unread)">
+          <Bell className="h-5 w-5" aria-hidden="true" />
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground" aria-hidden="true">
             3
           </span>
         </Button>
