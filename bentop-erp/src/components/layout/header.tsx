@@ -47,6 +47,7 @@ const pathLabels: Record<string, string> = {
   "/consignment": "Consignment",
   "/consignment/shipments": "Shipments",
   "/consignment/shipments/new": "New Shipment",
+  "/consignment/reports": "Reports",
   "/settings": "Settings",
   "/settings/channels": "Sales Channels",
   "/settings/currency": "Currency & Exchange Rates",

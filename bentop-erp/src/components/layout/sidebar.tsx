@@ -69,6 +69,7 @@ const navItems: NavItem[] = [
     children: [
       { title: "Overview", href: "/consignment" },
       { title: "New Shipment", href: "/consignment/shipments/new" },
+      { title: "Reports", href: "/consignment/reports" },
     ],
   },
   {
