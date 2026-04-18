@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Bentop HR Admin",
+    "slug": "bentop-hr-admin",
+    "version": "0.0.1",
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": ["expo-router"]
+  }
+}

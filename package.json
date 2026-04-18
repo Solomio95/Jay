@@ -1,0 +1,28 @@
+{
+  "name": "bentop-hr",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Bentop HR System — payroll, commission, leave, approvals for a Malaysian apparel retailer",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff",
+    "fn:serve": "supabase functions serve"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
