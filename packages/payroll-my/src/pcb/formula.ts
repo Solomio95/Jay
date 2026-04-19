@@ -111,7 +111,9 @@ export const computePcb = (input: PcbInputs): PcbOutputs => {
 
     const reliefSen = computeAnnualReliefSen({
         category,
-        childrenInTertiary: input.childrenInTertiary,
+        ...(input.childrenInTertiary !== undefined
+            ? { childrenInTertiary: input.childrenInTertiary }
+            : {}),
         epfYtdEmployeeSen: totalEpfForYear,
         socsoYtdEmployeeSen: totalSocsoForYear,
         additionalReliefSen: input.additionalReliefSen ?? 0,

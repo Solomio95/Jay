@@ -10,7 +10,7 @@
 // last verified so HR can spot-check. HR can override at runtime by passing
 // a `reliefsOverride` object.
 
-import type { Sen } from "@bentop/domain";
+import { type Sen, toSen } from "@bentop/domain";
 import { childCountFromCategory, isMarried, type PcbCategory } from "./categories.js";
 
 export interface PcbReliefs {
@@ -36,12 +36,12 @@ export interface PcbReliefs {
 
 // Year-assessment 2024 amounts — verify against LHDN guide before production.
 export const RELIEFS_YA2024: PcbReliefs = {
-    personalSen: 900000,                 // RM 9,000
-    spouseSen: 400000,                   // RM 4,000
-    childUnder18Sen: 200000,             // RM 2,000
-    childInTertiarySen: 800000,          // RM 8,000
-    epfLifeInsuranceCapSen: 700000,      // RM 7,000 combined
-    socsoCapSen: 35000,                  // RM 350
+    personalSen: toSen(9000),
+    spouseSen: toSen(4000),
+    childUnder18Sen: toSen(2000),
+    childInTertiarySen: toSen(8000),
+    epfLifeInsuranceCapSen: toSen(7000),
+    socsoCapSen: toSen(350),
 };
 
 export interface ReliefInputs {
@@ -53,9 +53,9 @@ export interface ReliefInputs {
     reliefs?: PcbReliefs;
 }
 
-export const computeAnnualReliefSen = (input: ReliefInputs): number => {
+export const computeAnnualReliefSen = (input: ReliefInputs): Sen => {
     const r = input.reliefs ?? RELIEFS_YA2024;
-    let total = r.personalSen;
+    let total: number = r.personalSen;
 
     if (isMarried(input.category)) total += r.spouseSen;
 
@@ -72,5 +72,5 @@ export const computeAnnualReliefSen = (input: ReliefInputs): number => {
 
     if (input.additionalReliefSen) total += input.additionalReliefSen;
 
-    return total;
+    return total as Sen;
 };

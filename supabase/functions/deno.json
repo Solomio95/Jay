@@ -1,0 +1,13 @@
+{
+    "imports": {
+        "@bentop/domain": "../../packages/domain/src/index.ts",
+        "@bentop/payroll-my": "../../packages/payroll-my/src/index.ts",
+        "@bentop/pdf": "../../packages/pdf/src/index.ts",
+        "@bentop/commission": "../../packages/commission/src/index.ts",
+        "pdf-lib": "npm:pdf-lib@^1.17.1"
+    },
+    "unstable": ["sloppy-imports"],
+    "compilerOptions": {
+        "lib": ["deno.ns", "deno.unstable", "esnext"]
+    }
+}

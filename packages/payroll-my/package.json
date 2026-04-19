@@ -10,7 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bentop/domain": "workspace:*"
+    "@bentop/domain": "workspace:*",
+    "@bentop/pdf": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

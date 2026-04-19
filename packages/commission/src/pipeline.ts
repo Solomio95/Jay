@@ -100,6 +100,7 @@ export const runCommissionPipeline = (input: PipelineInput): PipelineOutput => {
                     break;
                 }
                 case "flat": {
+                    if (rule.config.basis !== "flat") continue;
                     lineItems.push({
                         employeeId: employee.id,
                         ruleId: rule.id,

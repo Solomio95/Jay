@@ -30,6 +30,7 @@ export interface OverrideRegionConfig {
 }
 
 export interface FlatConfig {
+    basis: "flat";
     amount: Sen;
     perUnit?: "sale" | "customer" | "signup";
 }

@@ -125,6 +125,9 @@ importers:
       '@bentop/domain':
         specifier: workspace:*
         version: link:../domain
+      '@bentop/pdf':
+        specifier: workspace:*
+        version: link:../pdf
     devDependencies:
       typescript:
         specifier: ^5.6.3

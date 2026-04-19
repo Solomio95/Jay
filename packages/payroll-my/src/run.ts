@@ -60,13 +60,17 @@ export const computePayslip = (input: EmployeePayrollInput): Payslip => {
     const socso = computeSocso({
         wageSen: fullGross,
         ageYears: input.ageYears,
-        firstRegisteredAgeYears: input.firstRegisteredSocsoAgeYears,
+        ...(input.firstRegisteredSocsoAgeYears !== undefined
+            ? { firstRegisteredAgeYears: input.firstRegisteredSocsoAgeYears }
+            : {}),
     });
     const eis = computeEis({ wageSen: fullGross, ageYears: input.ageYears });
 
     const pcb = computePcb({
         category: input.pcbCategory,
-        childrenInTertiary: input.childrenInTertiary,
+        ...(input.childrenInTertiary !== undefined
+            ? { childrenInTertiary: input.childrenInTertiary }
+            : {}),
         monthIndex: input.monthIndex,
         currentMonthNormalSen: normalWage,
         currentMonthAdditionalSen: additionalWage,
@@ -80,8 +84,8 @@ export const computePayslip = (input: EmployeePayrollInput): Payslip => {
         ytdZakatSen: input.ytdZakatSen,
         ytdMtdPaidSen: input.ytdMtdPaidSen,
         additionalReliefSen: input.additionalReliefSen ?? 0,
-        reliefs: input.reliefs,
-        taxBands: input.taxBands,
+        ...(input.reliefs !== undefined ? { reliefs: input.reliefs } : {}),
+        ...(input.taxBands !== undefined ? { taxBands: input.taxBands } : {}),
     });
 
     const otherDeductionTotal = addSen(
