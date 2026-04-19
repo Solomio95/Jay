@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { FlatList, Text, View } from "react-native";
 import { RoleGuard } from "../../src/auth/RoleGuard";
 import { usePendingApprovals } from "../../src/features/approvals/usePendingApprovals";
@@ -41,20 +42,30 @@ const ApprovalsList = () => {
             <FlatList
                 data={items}
                 keyExtractor={(i) => i.id}
-                renderItem={({ item }) => (
-                    <View
-                        style={{
-                            paddingVertical: 12,
-                            borderBottomWidth: 1,
-                            borderColor: "#eee",
-                        }}
-                    >
-                        <Text style={{ fontWeight: "500" }}>{item.requesterName}</Text>
-                        <Text style={{ color: "#666" }}>
-                            {item.kind} · {item.summary}
-                        </Text>
-                    </View>
-                )}
+                renderItem={({ item }) => {
+                    const body = (
+                        <View
+                            style={{
+                                paddingVertical: 12,
+                                borderBottomWidth: 1,
+                                borderColor: "#eee",
+                            }}
+                        >
+                            <Text style={{ fontWeight: "500" }}>{item.requesterName}</Text>
+                            <Text style={{ color: "#666" }}>
+                                {item.kind} · {item.summary}
+                            </Text>
+                        </View>
+                    );
+                    if (item.kind === "leave_request") {
+                        return (
+                            <Link href={`/leave/${item.id}`} asChild>
+                                {body}
+                            </Link>
+                        );
+                    }
+                    return body;
+                }}
             />
         </View>
     );
