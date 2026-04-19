@@ -25,7 +25,7 @@ export const usePayslips = () => {
                             id: row.id as string,
                             periodMonth: (row.payroll_run as { period_month: string })
                                 .period_month,
-                            netPay: (row.net_pay as number) / 100,
+                            netPay: Number(row.net_pay ?? 0),
                         };
                         return pdfUrl ? { ...base, pdfUrl } : base;
                     }),
