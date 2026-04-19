@@ -1,27 +1,40 @@
 import { type Sen } from "@bentop/domain";
-import { SOCSO_TABLE_2026, type SocsoBand } from "./tables/socso-table.js";
+import {
+    type SocsoCategory,
+    lookupSocsoBand,
+} from "./tables/socso-categories.js";
 
 export interface SocsoInput {
     wageSen: Sen;
-    table?: SocsoBand[];
+    ageYears: number;
+    firstRegisteredAgeYears?: number;  // age when first registered with SOCSO
 }
 
 export interface SocsoOutput {
     employeeSen: Sen;
     employerSen: Sen;
+    category: SocsoCategory;
 }
 
-export const computeSocso = (input: SocsoInput): SocsoOutput => {
-    const table = input.table ?? SOCSO_TABLE_2026;
-    if (input.wageSen <= 0) return { employeeSen: 0 as Sen, employerSen: 0 as Sen };
+// PERKESO rule: employee moves to Category 2 when they turn 60, OR when they
+// are first registered with SOCSO at age 55 or older.
+export const categoryFor = (
+    ageYears: number,
+    firstRegisteredAgeYears?: number,
+): SocsoCategory => {
+    if (ageYears >= 60) return "category_2";
+    if (firstRegisteredAgeYears !== undefined && firstRegisteredAgeYears >= 55) {
+        return "category_2";
+    }
+    return "category_1";
+};
 
-    const band = table.find(
-        (b) => input.wageSen >= b.wageMinSen && input.wageSen <= b.wageMaxSen,
-    );
-    // Wages above the top band fall back to the top band's rate (cap).
-    const chosen = band ?? table[table.length - 1]!;
+export const computeSocso = (input: SocsoInput): SocsoOutput => {
+    const category = categoryFor(input.ageYears, input.firstRegisteredAgeYears);
+    const band = lookupSocsoBand(input.wageSen, category);
     return {
-        employeeSen: chosen.employeeSen as Sen,
-        employerSen: chosen.employerSen as Sen,
+        employeeSen: band.employeeSen as Sen,
+        employerSen: band.employerSen as Sen,
+        category,
     };
 };

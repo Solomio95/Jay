@@ -1,0 +1,116 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`payroll snapshots > high-earner-ka3-rm15000-dec: State manager, married 3 kids (KA3), RM 15,000 gross, December, Jan-Nov YTD loaded 1`] = `
+{
+  "eisEmployee": 1000,
+  "eisEmployer": 1000,
+  "employeeId": Any<String>,
+  "epfEmployee": 165000,
+  "epfEmployer": 180000,
+  "grossAllowances": 100000,
+  "grossBasic": 1200000,
+  "grossCommission": 200000,
+  "grossKpiBonus": 0,
+  "grossOt": 0,
+  "grossTotal": 1500000,
+  "netPay": 548875,
+  "otherDeductions": [],
+  "payrollRunId": Any<String>,
+  "pcb": 782625,
+  "periodMonth": "2026-12-01",
+  "socsoEmployee": 2500,
+  "socsoEmployer": 8750,
+}
+`;
+
+exports[`payroll snapshots > married-ka2-rm5000-jan: Married (KA2) area manager, RM 5,000 basic, January, no YTD 1`] = `
+{
+  "eisEmployee": 1000,
+  "eisEmployer": 1000,
+  "employeeId": Any<String>,
+  "epfEmployee": 55000,
+  "epfEmployer": 65000,
+  "grossAllowances": 0,
+  "grossBasic": 500000,
+  "grossCommission": 0,
+  "grossKpiBonus": 0,
+  "grossOt": 0,
+  "grossTotal": 500000,
+  "netPay": 435950,
+  "otherDeductions": [],
+  "payrollRunId": Any<String>,
+  "pcb": 5550,
+  "periodMonth": "2026-01-01",
+  "socsoEmployee": 2500,
+  "socsoEmployer": 8750,
+}
+`;
+
+exports[`payroll snapshots > promoter-with-commission-apr: Single promoter with RM 1,470 commission + bonus, April (month 4), Q1 YTD loaded 1`] = `
+{
+  "eisEmployee": 660,
+  "eisEmployer": 660,
+  "employeeId": Any<String>,
+  "epfEmployee": 36300,
+  "epfEmployer": 42900,
+  "grossAllowances": 0,
+  "grossBasic": 180000,
+  "grossCommission": 122000,
+  "grossKpiBonus": 25000,
+  "grossOt": 0,
+  "grossTotal": 327000,
+  "netPay": 288390,
+  "otherDeductions": [],
+  "payrollRunId": Any<String>,
+  "pcb": 0,
+  "periodMonth": "2026-04-01",
+  "socsoEmployee": 1650,
+  "socsoEmployer": 5775,
+}
+`;
+
+exports[`payroll snapshots > senior-ka0-rm4000-jan: Age 62, married no kids (KA0), RM 4,000 — EPF senior rate + EIS exempt 1`] = `
+{
+  "eisEmployee": 0,
+  "eisEmployer": 0,
+  "employeeId": Any<String>,
+  "epfEmployee": 22000,
+  "epfEmployer": 26000,
+  "grossAllowances": 0,
+  "grossBasic": 400000,
+  "grossCommission": 0,
+  "grossKpiBonus": 0,
+  "grossOt": 0,
+  "grossTotal": 400000,
+  "netPay": 378000,
+  "otherDeductions": [],
+  "payrollRunId": Any<String>,
+  "pcb": 0,
+  "periodMonth": "2026-01-01",
+  "socsoEmployee": 0,
+  "socsoEmployer": 5000,
+}
+`;
+
+exports[`payroll snapshots > single-k-rm3200-jan: Single promoter (K), RM 3,000 basic + RM 200 allowance, January, no YTD 1`] = `
+{
+  "eisEmployee": 640,
+  "eisEmployer": 640,
+  "employeeId": Any<String>,
+  "epfEmployee": 35200,
+  "epfEmployer": 41600,
+  "grossAllowances": 20000,
+  "grossBasic": 300000,
+  "grossCommission": 0,
+  "grossKpiBonus": 0,
+  "grossOt": 0,
+  "grossTotal": 320000,
+  "netPay": 282560,
+  "otherDeductions": [],
+  "payrollRunId": Any<String>,
+  "pcb": 0,
+  "periodMonth": "2026-01-01",
+  "socsoEmployee": 1600,
+  "socsoEmployer": 5600,
+}
+`;

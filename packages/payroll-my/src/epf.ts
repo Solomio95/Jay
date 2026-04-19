@@ -1,39 +1,52 @@
 import { type Sen } from "@bentop/domain";
-import { EPF_RATES_2026, type EpfRateInputs } from "./tables/epf-rates.js";
+import {
+    EPF_EMPLOYER_THRESHOLD_SEN,
+    type EpfCategory,
+    lookupEpfBand,
+} from "./tables/epf-third-schedule.js";
 
 export interface EpfInput {
-    wageSen: Sen;             // gross subject to EPF (salary + allowances; not commission by default)
+    wageSen: Sen;            // EPF-liable wage (basic + allowances by default; commission excluded unless policy says otherwise)
     ageYears: number;
-    rates?: EpfRateInputs;
 }
 
 export interface EpfOutput {
     employeeSen: Sen;
     employerSen: Sen;
+    ruleApplied: "third_schedule" | "percentage_over_20k";
 }
 
-// KWSP rounds wages up to the nearest ringgit before computation.
-const roundUpToRinggit = (sen: Sen): Sen => {
-    const remainder = sen % 100;
-    if (remainder === 0) return sen;
-    return ((sen - remainder) + 100) as Sen;
-};
+// KWSP splits the world at age 60 (employee drops to 5.5%, employer halves).
+// Foreign workers have a different scheme entirely — that's a separate employee
+// category not yet modelled. See docs/malaysia-statutory.md § "Foreign workers".
+const categoryFor = (ageYears: number): EpfCategory =>
+    ageYears >= 60 ? "age_60_plus" : "below_60";
 
 export const computeEpf = (input: EpfInput): EpfOutput => {
-    const rates = input.rates ?? EPF_RATES_2026;
-    const wage = roundUpToRinggit(input.wageSen);
-    if (wage <= 0) return { employeeSen: 0 as Sen, employerSen: 0 as Sen };
+    if (input.wageSen <= 0) {
+        return { employeeSen: 0 as Sen, employerSen: 0 as Sen, ruleApplied: "third_schedule" };
+    }
+    const category = categoryFor(input.ageYears);
 
-    const isSenior = input.ageYears >= 60;
-    const employeeRate = isSenior ? rates.employeeAbove60 : rates.employeeBelow60;
+    const band = lookupEpfBand(input.wageSen, category);
+    if (band) {
+        const employerSen =
+            input.wageSen <= EPF_EMPLOYER_THRESHOLD_SEN
+                ? band.employerLowBandSen
+                : band.employerHighBandSen;
+        return {
+            employeeSen: band.employeeSen as Sen,
+            employerSen: employerSen as Sen,
+            ruleApplied: "third_schedule",
+        };
+    }
 
-    const wageInRinggit = wage / 100;
-    const belowThreshold = wageInRinggit <= rates.wageThreshold;
-    const employerRate = isSenior
-        ? (belowThreshold ? rates.employerLowBandAbove60 : rates.employerHighBandAbove60)
-        : (belowThreshold ? rates.employerLowBandBelow60 : rates.employerHighBandBelow60);
-
-    const employeeSen = Math.round(wage * employeeRate) as Sen;
-    const employerSen = Math.round(wage * employerRate) as Sen;
-    return { employeeSen, employerSen };
+    // Wage > RM 20,000 → percentage rule on the actual wage.
+    const employeeRate = category === "below_60" ? 0.11 : 0.055;
+    const employerRate = category === "below_60" ? 0.12 : 0.06;
+    return {
+        employeeSen: Math.ceil(input.wageSen * employeeRate) as Sen,
+        employerSen: Math.ceil(input.wageSen * employerRate) as Sen,
+        ruleApplied: "percentage_over_20k",
+    };
 };
