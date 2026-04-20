@@ -64,6 +64,13 @@ const ApprovalsList = () => {
                             </Link>
                         );
                     }
+                    if (item.kind === "ot_record") {
+                        return (
+                            <Link href={`/ot/${item.id}`} asChild>
+                                {body}
+                            </Link>
+                        );
+                    }
                     return body;
                 }}
             />

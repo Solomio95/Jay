@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { useTodayStats } from "../../src/features/today/useTodayStats";
 
@@ -7,14 +8,43 @@ export default function Today() {
     return (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
             <Text style={{ fontSize: 24, fontWeight: "600" }}>Today</Text>
-            {loading ? <Text>Loading…</Text> : (
+            {loading ? (
+                <Text>Loading…</Text>
+            ) : (
                 <>
-                    <Card label="Today's sales" value={`RM ${data?.salesToday.toFixed(2) ?? "—"}`} />
-                    <Card label="This month" value={`RM ${data?.salesMonth.toFixed(2) ?? "—"}`} />
-                    <Card label="Commission-to-date" value={`RM ${data?.commissionMtd.toFixed(2) ?? "—"}`} />
-                    <Card label="Attendance rate" value={`${((data?.attendance ?? 0) * 100).toFixed(1)}%`} />
+                    <Card
+                        label="Today's sales"
+                        value={`RM ${data?.salesToday.toFixed(2) ?? "—"}`}
+                    />
+                    <Card
+                        label="This month"
+                        value={`RM ${data?.salesMonth.toFixed(2) ?? "—"}`}
+                    />
+                    <Card
+                        label="Commission-to-date"
+                        value={`RM ${data?.commissionMtd.toFixed(2) ?? "—"}`}
+                    />
+                    <Card
+                        label="Attendance rate"
+                        value={`${((data?.attendance ?? 0) * 100).toFixed(1)}%`}
+                    />
                 </>
             )}
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                <Link
+                    href="/leave/new"
+                    style={{ color: "#2563eb", paddingVertical: 8 }}
+                >
+                    + Request leave
+                </Link>
+                <Link
+                    href="/ot/new"
+                    style={{ color: "#2563eb", paddingVertical: 8 }}
+                >
+                    + Log OT
+                </Link>
+            </View>
         </ScrollView>
     );
 }
