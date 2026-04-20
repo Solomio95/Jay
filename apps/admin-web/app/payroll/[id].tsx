@@ -8,7 +8,9 @@ import {
     Text,
     View,
 } from "react-native";
+import { buildMaybankBulkFile } from "@bentop/payroll-my";
 import { supabase } from "../../src/supabase";
+import { toBankCode } from "../../src/bankCodes";
 
 interface PayrollRun {
     id: string;
@@ -31,7 +33,13 @@ interface PayslipRow {
     pdf_url: string | null;
     employee: {
         employee_no: string;
-        profile: { full_name: string } | null;
+        bank_name: string | null;
+        bank_account: string | null;
+        profile: {
+            full_name: string;
+            ic_number: string | null;
+            email: string | null;
+        } | null;
     } | null;
 }
 
@@ -69,8 +77,8 @@ export default function PayrollRunDetail() {
                     epf_employee, socso_employee, eis_employee, pcb,
                     net_pay, pdf_url,
                     employee:employees!inner(
-                        employee_no,
-                        profile:profiles(full_name)
+                        employee_no, bank_name, bank_account,
+                        profile:profiles(full_name, ic_number, email)
                     )
                 `)
                 .eq("payroll_run_id", id)
@@ -101,6 +109,59 @@ export default function PayrollRunDetail() {
             return;
         }
         await load();
+    };
+
+    const downloadBankFile = async () => {
+        if (!run) return;
+        const { data: setting } = await supabase
+            .from("app_settings")
+            .select("value")
+            .eq("key", "payroll.org_bank_account")
+            .maybeSingle();
+        const orgAccount =
+            (setting?.value as { account?: string } | null)?.account ?? "";
+        if (!orgAccount) {
+            Alert.alert(
+                "Bank account not configured",
+                "Set app_settings.payroll.org_bank_account = { \"account\": \"…\" } before exporting.",
+            );
+            return;
+        }
+        const { text, skipped, totalAmountSen, totalCount } = buildMaybankBulkFile({
+            orgAccount,
+            payDate: run.pay_date,
+            reference: `PAYROLL ${run.period_month.slice(0, 7)}`,
+            payees: payslips.map((ps) => ({
+                employeeNo: ps.employee?.employee_no ?? "",
+                fullName: ps.employee?.profile?.full_name ?? "",
+                icNo: ps.employee?.profile?.ic_number ?? null,
+                bankName: ps.employee?.bank_name ?? null,
+                bankAccount: ps.employee?.bank_account ?? null,
+                bankCode: toBankCode(ps.employee?.bank_name ?? null),
+                netPay: Number(ps.net_pay),
+                email: ps.employee?.profile?.email ?? null,
+            })),
+        });
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `bentop-payroll-${run.period_month.slice(0, 7)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        if (skipped.length > 0) {
+            Alert.alert(
+                "Bank file downloaded with skipped rows",
+                `${totalCount} paid (RM ${(totalAmountSen / 100).toFixed(2)}). Skipped ${skipped.length}: ${skipped
+                    .map((s) => `${s.employeeNo}(${s.reason})`)
+                    .join(", ")}`,
+            );
+        } else {
+            Alert.alert(
+                "Bank file downloaded",
+                `${totalCount} payees · RM ${(totalAmountSen / 100).toFixed(2)}`,
+            );
+        }
     };
 
     if (loading || !run) {
@@ -160,6 +221,10 @@ export default function PayrollRunDetail() {
                     onPress={approve}
                     disabled={approving}
                 />
+            ) : null}
+
+            {run.status === "approved" || run.status === "paid" || run.status === "closed" ? (
+                <Button title="Download Maybank bulk file" onPress={downloadBankFile} />
             ) : null}
 
             <Text style={{ fontSize: 16, fontWeight: "600", marginTop: 8 }}>

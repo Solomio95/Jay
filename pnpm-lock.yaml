@@ -23,6 +23,9 @@ importers:
       '@bentop/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bentop/payroll-my':
+        specifier: workspace:*
+        version: link:../../packages/payroll-my
       '@supabase/supabase-js':
         specifier: ^2.46.1
         version: 2.103.3

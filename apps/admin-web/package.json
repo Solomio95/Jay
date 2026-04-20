@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@bentop/domain": "workspace:*",
+    "@bentop/payroll-my": "workspace:*",
     "@supabase/supabase-js": "^2.46.1",
     "expo": "~52.0.0",
     "expo-router": "~4.0.0",
