@@ -1,20 +1,32 @@
-// Hourly job: pull incremental sales from Bentop ERP and upsert into sales_records.
-// Idempotent: external_id is UNIQUE. Amendments set superseded_by on the old row.
+// Hourly job: pull incremental sales from Bentop ERP and upsert into
+// sales_records. Idempotent — see packages/erp-sync for the decision logic
+// and its unit tests. This file is the thin IO wrapper: it fetches from
+// the ERP, resolves counter/employee codes, groups existing DB rows by
+// base external id, and applies the per-sale action decideSaleAction
+// returns.
+//
 // Triggered by pg_cron or invoked manually by HR to force a full re-sync.
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { serviceClient } from "../_shared/supabase.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.46.1";
+import {
+    decideSaleAction,
+    extractBaseExternalId,
+    type ErpSaleInput,
+    type ExistingSaleRow,
+} from "@bentop/erp-sync";
 
 interface ErpSale {
     external_id: string;
     counter_code: string;
     employee_code: string | null;
-    sale_date: string;          // YYYY-MM-DD
-    gross: number;              // ringgit
-    returns: number;            // ringgit
-    currency: string;           // "MYR"
+    sale_date: string;
+    gross: number;
+    returns: number;
+    currency: string;
     version: number;
-    last_modified_at: string;   // ISO timestamp
+    last_modified_at: string;
 }
 
 Deno.serve(async (req) => {
@@ -31,15 +43,21 @@ Deno.serve(async (req) => {
     const run = await supabase
         .from("sales_sync_runs")
         .insert({ from_date: fromDate, to_date: toDate })
-        .select()
+        .select("id")
         .single();
-    const runId = run.data?.id;
+    const runId = run.data?.id as string | undefined;
 
     try {
         const erpSales = await fetchFromErp(fromDate, toDate);
+        const existingByBase = await loadExistingByBase(
+            supabase,
+            erpSales.map((s) => s.external_id),
+        );
+
         let inserted = 0;
         let updated = 0;
         let superseded = 0;
+        let skipped = 0;
 
         for (const sale of erpSales) {
             const { counterId, employeeId } = await resolveCodes(
@@ -47,77 +65,109 @@ Deno.serve(async (req) => {
                 sale.counter_code,
                 sale.employee_code,
             );
-            if (!counterId) continue;  // skip sales for unknown counters
+            if (!counterId) {
+                skipped++;
+                continue;
+            }
 
-            const existing = await supabase
+            const input: ErpSaleInput = {
+                baseExternalId: sale.external_id,
+                counterId,
+                employeeId,
+                saleDate: sale.sale_date,
+                grossAmount: sale.gross,
+                returnsAmount: sale.returns,
+                currency: sale.currency,
+                erpVersion: sale.version,
+                erpLastModifiedAt: sale.last_modified_at,
+            };
+            const existingRows = existingByBase.get(sale.external_id) ?? [];
+            const action = decideSaleAction(existingRows, input);
+
+            if (action.kind === "skip") {
+                skipped++;
+                continue;
+            }
+
+            const payload = {
+                external_id: action.row.externalId,
+                counter_id: action.row.counterId,
+                employee_id: action.row.employeeId,
+                sale_date: action.row.saleDate,
+                gross_amount: action.row.grossAmount,
+                returns_amount: action.row.returnsAmount,
+                currency: action.row.currency,
+                erp_version: action.row.erpVersion,
+                erp_last_modified_at: action.row.erpLastModifiedAt,
+            };
+            const insertRes = await supabase
                 .from("sales_records")
-                .select("id, erp_version")
-                .eq("external_id", sale.external_id)
-                .maybeSingle();
+                .insert(payload)
+                .select("id")
+                .single();
+            if (insertRes.error || !insertRes.data) {
+                throw new Error(
+                    `insert failed for ${action.row.externalId}: ${insertRes.error?.message}`,
+                );
+            }
 
-            if (!existing.data) {
-                await supabase.from("sales_records").insert({
-                    external_id: sale.external_id,
-                    counter_id: counterId,
-                    employee_id: employeeId,
-                    sale_date: sale.sale_date,
-                    gross_amount: sale.gross,
-                    returns_amount: sale.returns,
-                    currency: sale.currency,
-                    erp_version: sale.version,
-                    erp_last_modified_at: sale.last_modified_at,
-                });
-                inserted++;
-            } else if (sale.version > existing.data.erp_version) {
-                // Amendment: mark old row superseded and insert the new one.
-                const newRow = await supabase
-                    .from("sales_records")
-                    .insert({
-                        external_id: `${sale.external_id}#v${sale.version}`,
-                        counter_id: counterId,
-                        employee_id: employeeId,
-                        sale_date: sale.sale_date,
-                        gross_amount: sale.gross,
-                        returns_amount: sale.returns,
-                        currency: sale.currency,
-                        erp_version: sale.version,
-                        erp_last_modified_at: sale.last_modified_at,
-                    })
-                    .select("id")
-                    .single();
+            if (action.kind === "amend") {
                 await supabase
                     .from("sales_records")
-                    .update({ superseded_by: newRow.data!.id })
-                    .eq("id", existing.data.id);
+                    .update({ superseded_by: insertRes.data.id })
+                    .eq("id", action.supersedesId);
                 superseded++;
                 updated++;
+            } else {
+                inserted++;
             }
+
+            // Keep the in-memory cache coherent so a duplicate sale later in
+            // the same batch is seen as "already applied".
+            const list = existingByBase.get(sale.external_id) ?? [];
+            list.push({
+                id: insertRes.data.id,
+                externalId: action.row.externalId,
+                erpVersion: action.row.erpVersion,
+                supersededBy: null,
+            });
+            if (action.kind === "amend") {
+                const prev = list.find((r) => r.id === action.supersedesId);
+                if (prev) prev.supersededBy = insertRes.data.id;
+            }
+            existingByBase.set(sale.external_id, list);
         }
 
-        await supabase
-            .from("sales_sync_runs")
-            .update({
-                ended_at: new Date().toISOString(),
-                records_inserted: inserted,
-                records_updated: updated,
-                records_superseded: superseded,
-                success: true,
-            })
-            .eq("id", runId);
+        if (runId) {
+            await supabase
+                .from("sales_sync_runs")
+                .update({
+                    ended_at: new Date().toISOString(),
+                    records_inserted: inserted,
+                    records_updated: updated,
+                    records_superseded: superseded,
+                    success: true,
+                })
+                .eq("id", runId);
+        }
 
-        return new Response(JSON.stringify({ inserted, updated, superseded }), {
-            headers: { ...corsHeaders, "content-type": "application/json" },
-        });
+        return new Response(
+            JSON.stringify({ inserted, updated, superseded, skipped }),
+            { headers: { ...corsHeaders, "content-type": "application/json" } },
+        );
     } catch (err) {
-        await supabase
-            .from("sales_sync_runs")
-            .update({
-                ended_at: new Date().toISOString(),
-                error_message: (err as Error).message,
-                success: false,
-            })
-            .eq("id", runId);
-        return new Response(JSON.stringify({ error: (err as Error).message }), {
+        const message = err instanceof Error ? err.message : String(err);
+        if (runId) {
+            await supabase
+                .from("sales_sync_runs")
+                .update({
+                    ended_at: new Date().toISOString(),
+                    error_message: message,
+                    success: false,
+                })
+                .eq("id", runId);
+        }
+        return new Response(JSON.stringify({ error: message }), {
             status: 500,
             headers: { ...corsHeaders, "content-type": "application/json" },
         });
@@ -141,11 +191,12 @@ const fetchFromErp = async (from: string, to: string): Promise<ErpSale[]> => {
     return body.data as ErpSale[];
 };
 
+// deno-lint-ignore no-explicit-any
 const resolveCodes = async (
-    supabase: ReturnType<typeof serviceClient>,
+    supabase: SupabaseClient,
     counterCode: string,
     employeeCode: string | null,
-) => {
+): Promise<{ counterId: string | null; employeeId: string | null }> => {
     const counter = await supabase
         .from("counters")
         .select("id")
@@ -157,9 +208,46 @@ const resolveCodes = async (
               .select("id")
               .eq("employee_no", employeeCode)
               .maybeSingle()
-        : { data: null };
+        : { data: null as { id: string } | null };
     return {
-        counterId: counter.data?.id ?? null,
-        employeeId: employee.data?.id ?? null,
+        counterId: (counter.data?.id as string | undefined) ?? null,
+        employeeId: (employee.data?.id as string | undefined) ?? null,
     };
+};
+
+// Fetch every existing row (including superseded ones) for the base ids in
+// this batch, so decideSaleAction has full history when it makes its call.
+const loadExistingByBase = async (
+    supabase: SupabaseClient,
+    baseIds: readonly string[],
+): Promise<Map<string, ExistingSaleRow[]>> => {
+    const out = new Map<string, ExistingSaleRow[]>();
+    if (baseIds.length === 0) return out;
+
+    const patterns = baseIds.flatMap((id) => [id, `${id}#v%`]);
+    const { data, error } = await supabase
+        .from("sales_records")
+        .select("id, external_id, erp_version, superseded_by")
+        .or(patterns.map((p) => `external_id.like.${p}`).join(","));
+    if (error) {
+        throw new Error(`existing row lookup failed: ${error.message}`);
+    }
+
+    for (const row of (data ?? []) as Array<{
+        id: string;
+        external_id: string;
+        erp_version: number;
+        superseded_by: string | null;
+    }>) {
+        const base = extractBaseExternalId(row.external_id);
+        const list = out.get(base) ?? [];
+        list.push({
+            id: row.id,
+            externalId: row.external_id,
+            erpVersion: row.erp_version,
+            supersededBy: row.superseded_by,
+        });
+        out.set(base, list);
+    }
+    return out;
 };
