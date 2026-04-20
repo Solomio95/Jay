@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
+import { registerPushToken, unregisterPushToken } from "../push/registerPushToken";
 
 export type AppRole =
     | "promoter"
@@ -71,6 +72,9 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
                     fullName: data.full_name,
                     role: data.role as AppRole,
                 });
+                registerPushToken().catch((e) => {
+                    console.warn("push registration failed", e);
+                });
             });
         return () => {
             active = false;
@@ -83,6 +87,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             profile,
             loading,
             signOut: async () => {
+                await unregisterPushToken().catch(() => undefined);
                 await supabase.auth.signOut();
             },
         }),
