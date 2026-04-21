@@ -66,7 +66,13 @@ export default function Today() {
                 </View>
             ) : null}
 
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+                <Link
+                    href="/clock-in"
+                    style={{ color: "#2563eb", paddingVertical: 8 }}
+                >
+                    Clock in / out
+                </Link>
                 <Link
                     href="/leave/new"
                     style={{ color: "#2563eb", paddingVertical: 8 }}
