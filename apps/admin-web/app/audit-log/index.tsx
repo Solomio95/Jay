@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
+    Button,
     FlatList,
     Text,
     TextInput,
@@ -19,10 +21,19 @@ interface AuditRow {
     actor: { full_name: string } | null;
 }
 
+const firstOfMonth = (d: Date): string =>
+    new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+
 export default function AuditLog() {
     const [rows, setRows] = useState<AuditRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
+    const now = new Date();
+    const [fromDate, setFromDate] = useState(firstOfMonth(now));
+    const [toDate, setToDate] = useState(
+        firstOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1)),
+    );
+    const [busy, setBusy] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -56,6 +67,30 @@ export default function AuditLog() {
         });
     }, [rows, query]);
 
+    const exportJsonl = async () => {
+        setBusy(true);
+        const { data, error } = await supabase.rpc("audit_log_range", {
+            p_from: `${fromDate}T00:00:00Z`,
+            p_to: `${toDate}T00:00:00Z`,
+        });
+        setBusy(false);
+        if (error) {
+            Alert.alert("Export failed", error.message);
+            return;
+        }
+        const jsonl = ((data as unknown[]) ?? [])
+            .map((r) => JSON.stringify(r))
+            .join("\n") + "\n";
+        const blob = new Blob([jsonl], { type: "application/jsonl;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `audit-${fromDate}_to_${toDate}.jsonl`;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert("Exported", `${(data as unknown[]).length} rows downloaded.`);
+    };
+
     if (loading) {
         return (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -70,6 +105,38 @@ export default function AuditLog() {
             <Text style={{ color: "#666" }}>
                 Append-only trail. Showing the latest {rows.length} entries.
             </Text>
+
+            <View
+                style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    alignItems: "flex-end",
+                    padding: 12,
+                    borderRadius: 8,
+                    backgroundColor: "#f4f4f5",
+                }}
+            >
+                <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: "#666" }}>Export from</Text>
+                    <TextInput
+                        value={fromDate}
+                        onChangeText={setFromDate}
+                        style={input}
+                        placeholder="YYYY-MM-DD"
+                    />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: "#666" }}>to (exclusive)</Text>
+                    <TextInput
+                        value={toDate}
+                        onChangeText={setToDate}
+                        style={input}
+                        placeholder="YYYY-MM-DD"
+                    />
+                </View>
+                <Button title={busy ? "…" : "Download JSONL"} onPress={exportJsonl} disabled={busy} />
+            </View>
+
             <TextInput
                 value={query}
                 onChangeText={setQuery}
@@ -104,3 +171,10 @@ const EntryRow = ({ row }: { row: AuditRow }) => (
         </Text>
     </View>
 );
+
+const input = {
+    borderWidth: 1,
+    borderColor: "#d4d4d8",
+    padding: 8,
+    borderRadius: 6,
+} as const;
