@@ -6,4 +6,5 @@ export * from "./run.js";
 export * from "./orchestrate.js";
 export * from "./bankFile.js";
 export * from "./eaForm.js";
+export * from "./submissionFiles.js";
 export * from "./tables/index.js";

@@ -8,7 +8,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { buildMaybankBulkFile } from "@bentop/payroll-my";
+import { buildAllStatutoryFiles, buildMaybankBulkFile } from "@bentop/payroll-my";
 import { supabase } from "../../src/supabase";
 import { toBankCode } from "../../src/bankCodes";
 
@@ -26,8 +26,11 @@ interface PayslipRow {
     employee_id: string;
     gross_total: number;
     epf_employee: number;
+    epf_employer: number;
     socso_employee: number;
+    socso_employer: number;
     eis_employee: number;
+    eis_employer: number;
     pcb: number;
     net_pay: number;
     pdf_url: string | null;
@@ -35,6 +38,9 @@ interface PayslipRow {
         employee_no: string;
         bank_name: string | null;
         bank_account: string | null;
+        epf_no: string | null;
+        socso_no: string | null;
+        tax_no: string | null;
         profile: {
             full_name: string;
             ic_number: string | null;
@@ -74,10 +80,13 @@ export default function PayrollRunDetail() {
                 .from("payslips")
                 .select(`
                     id, employee_id, gross_total,
-                    epf_employee, socso_employee, eis_employee, pcb,
-                    net_pay, pdf_url,
+                    epf_employee, epf_employer,
+                    socso_employee, socso_employer,
+                    eis_employee, eis_employer,
+                    pcb, net_pay, pdf_url,
                     employee:employees!inner(
                         employee_no, bank_name, bank_account,
+                        epf_no, socso_no, tax_no,
                         profile:profiles(full_name, ic_number, email)
                     )
                 `)
@@ -164,6 +173,68 @@ export default function PayrollRunDetail() {
         }
     };
 
+    const downloadStatutoryFiles = async () => {
+        if (!run) return;
+        const { data: setting } = await supabase
+            .from("app_settings")
+            .select("value")
+            .eq("key", "payroll.statutory_employer")
+            .maybeSingle();
+        const employer = (setting?.value ?? null) as
+            | {
+                  name: string;
+                  epfEmployerNo: string;
+                  socsoEmployerCode: string;
+                  lhdnEmployerNo: string;
+              }
+            | null;
+        if (!employer) {
+            Alert.alert(
+                "Statutory employer not configured",
+                'Set app_settings.payroll.statutory_employer = { "name": "…", "epfEmployerNo": "…", "socsoEmployerCode": "…", "lhdnEmployerNo": "…" } before exporting.',
+            );
+            return;
+        }
+        const files = buildAllStatutoryFiles({
+            periodMonth: run.period_month,
+            payDate: run.pay_date,
+            employer,
+            employees: payslips.map((ps) => ({
+                employeeNo: ps.employee?.employee_no ?? "",
+                fullName: ps.employee?.profile?.full_name ?? "",
+                icNo: ps.employee?.profile?.ic_number ?? null,
+                taxNo: ps.employee?.tax_no ?? null,
+                epfNo: ps.employee?.epf_no ?? null,
+                socsoNo: ps.employee?.socso_no ?? null,
+                epfEmployee: Number(ps.epf_employee),
+                epfEmployer: Number(ps.epf_employer),
+                socsoEmployee: Number(ps.socso_employee),
+                socsoEmployer: Number(ps.socso_employer),
+                eisEmployee: Number(ps.eis_employee),
+                eisEmployer: Number(ps.eis_employer),
+                pcb: Number(ps.pcb),
+            })),
+        });
+        for (const f of files) {
+            const mime = f.filename.endsWith(".csv")
+                ? "text/csv;charset=utf-8"
+                : "text/plain;charset=utf-8";
+            const blob = new Blob([f.text], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = f.filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        Alert.alert(
+            "Statutory files downloaded",
+            files
+                .map((f) => `${f.filename}: ${f.totalCount} rows · RM ${(f.totalAmountSen / 100).toFixed(2)}`)
+                .join("\n"),
+        );
+    };
+
     if (loading || !run) {
         return (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -224,7 +295,10 @@ export default function PayrollRunDetail() {
             ) : null}
 
             {run.status === "approved" || run.status === "paid" || run.status === "closed" ? (
-                <Button title="Download Maybank bulk file" onPress={downloadBankFile} />
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    <Button title="Download Maybank bulk file" onPress={downloadBankFile} />
+                    <Button title="Download statutory files" onPress={downloadStatutoryFiles} />
+                </View>
             ) : null}
 
             <Text style={{ fontSize: 16, fontWeight: "600", marginTop: 8 }}>
