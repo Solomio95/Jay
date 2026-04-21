@@ -9,6 +9,7 @@ export default function AdminHome() {
             <NavLink href="/outlets" label="Outlets & counters" />
             <NavLink href="/commission-schemes" label="Commission schemes" />
             <NavLink href="/payroll" label="Payroll" />
+            <NavLink href="/ea-forms" label="Form EA (annual)" />
             <NavLink href="/reports" label="Reports" />
             <NavLink href="/statutory-rates" label="Statutory rate tables" />
             <NavLink href="/audit-log" label="Audit log" />
