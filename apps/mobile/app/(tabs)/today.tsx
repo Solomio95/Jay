@@ -1,9 +1,14 @@
 import { Link } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
+import {
+    useActiveContests,
+    useContestStandings,
+} from "../../src/features/contests/useActiveContests";
 import { useTodayStats } from "../../src/features/today/useTodayStats";
 
 export default function Today() {
     const { loading, data } = useTodayStats();
+    const contests = useActiveContests();
 
     return (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
@@ -31,6 +36,15 @@ export default function Today() {
                 </>
             )}
 
+            {contests.length > 0 ? (
+                <View style={{ gap: 8, marginTop: 8 }}>
+                    <Text style={{ fontWeight: "600" }}>Active contests</Text>
+                    {contests.map((c) => (
+                        <ContestStrip key={c.id} contestId={c.id} />
+                    ))}
+                </View>
+            ) : null}
+
             <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
                 <Link
                     href="/leave/new"
@@ -46,6 +60,41 @@ export default function Today() {
                 </Link>
             </View>
         </ScrollView>
+    );
+}
+
+function ContestStrip({ contestId }: { contestId: string }) {
+    const standings = useContestStandings(contestId);
+    if (!standings) return null;
+    const { contest, total, me, entries } = standings;
+    const leader = entries[0];
+    return (
+        <View
+            style={{
+                padding: 14,
+                borderRadius: 12,
+                backgroundColor: "#fef3c7",
+                gap: 4,
+            }}
+        >
+            <Text style={{ fontWeight: "600" }}>{contest.name}</Text>
+            <Text style={{ fontSize: 12, color: "#6b5a17" }}>
+                {contest.period_start} - {contest.period_end}
+                {contest.prize?.amount_rm
+                    ? ` · prize RM ${contest.prize.amount_rm}`
+                    : ""}
+            </Text>
+            <Text style={{ marginTop: 4 }}>
+                {me.rank
+                    ? `You: #${me.rank} of ${total} · RM ${Number(me.value).toFixed(0)}`
+                    : `${total} participants so far`}
+            </Text>
+            {leader ? (
+                <Text style={{ fontSize: 12, color: "#6b5a17" }}>
+                    Leader: {leader.name} · RM {Number(leader.value).toFixed(0)}
+                </Text>
+            ) : null}
+        </View>
     );
 }
 
