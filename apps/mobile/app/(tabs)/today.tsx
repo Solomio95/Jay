@@ -1,5 +1,6 @@
 import { Link } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
+import { useAnnouncements } from "../../src/features/announcements/useAnnouncements";
 import {
     useActiveContests,
     useContestStandings,
@@ -9,10 +10,30 @@ import { useTodayStats } from "../../src/features/today/useTodayStats";
 export default function Today() {
     const { loading, data } = useTodayStats();
     const contests = useActiveContests();
+    const announcements = useAnnouncements();
 
     return (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
             <Text style={{ fontSize: 24, fontWeight: "600" }}>Today</Text>
+            {announcements.length > 0 ? (
+                <View style={{ gap: 8 }}>
+                    {announcements.map((a) => (
+                        <View
+                            key={a.id}
+                            style={{
+                                padding: 12,
+                                borderRadius: 12,
+                                backgroundColor: "#dbeafe",
+                                borderLeftWidth: 4,
+                                borderLeftColor: "#2563eb",
+                            }}
+                        >
+                            <Text style={{ fontWeight: "600" }}>{a.title}</Text>
+                            <Text style={{ marginTop: 2 }}>{a.body}</Text>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
             {loading ? (
                 <Text>Loading…</Text>
             ) : (
