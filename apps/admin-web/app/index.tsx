@@ -13,6 +13,7 @@ export default function AdminHome() {
             <NavLink href="/reports" label="Reports" />
             <NavLink href="/leaderboards" label="Leaderboards" />
             <NavLink href="/contests" label="Contests" />
+            <NavLink href="/kpi-metrics" label="KPI metrics" />
             <NavLink href="/statutory-rates" label="Statutory rate tables" />
             <NavLink href="/audit-log" label="Audit log" />
         </View>
