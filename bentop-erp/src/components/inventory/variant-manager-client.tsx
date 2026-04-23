@@ -28,7 +28,7 @@ type Variant = {
   orderItemsCount: number;
 };
 
-type Color = { name: string; hex: string };
+type Color = { name: string; hex: string; code: string };
 
 type Props = {
   productId: string;
@@ -39,16 +39,16 @@ type Props = {
 const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 
 const COMMON_COLORS: Color[] = [
-  { name: "Black", hex: "#000000" },
-  { name: "White", hex: "#FFFFFF" },
-  { name: "Navy", hex: "#1B2A4A" },
-  { name: "Grey", hex: "#808080" },
-  { name: "Red", hex: "#D32F2F" },
-  { name: "Blue", hex: "#1976D2" },
-  { name: "Green", hex: "#388E3C" },
-  { name: "Khaki", hex: "#C3B091" },
-  { name: "Pink", hex: "#EC407A" },
-  { name: "Brown", hex: "#6D4C41" },
+  { name: "Black", hex: "#000000", code: "BLK" },
+  { name: "White", hex: "#FFFFFF", code: "WHT" },
+  { name: "Navy", hex: "#1B2A4A", code: "NAV" },
+  { name: "Grey", hex: "#808080", code: "GRY" },
+  { name: "Red", hex: "#D32F2F", code: "RED" },
+  { name: "Blue", hex: "#1976D2", code: "BLU" },
+  { name: "Green", hex: "#388E3C", code: "GRN" },
+  { name: "Khaki", hex: "#C3B091", code: "KHK" },
+  { name: "Pink", hex: "#EC407A", code: "PNK" },
+  { name: "Brown", hex: "#6D4C41", code: "BRN" },
 ];
 
 export function VariantManagerClient({ productId, skuPrefix, existingVariants }: Props) {
@@ -57,6 +57,7 @@ export function VariantManagerClient({ productId, skuPrefix, existingVariants }:
   const [selectedColors, setSelectedColors] = useState<Color[]>([]);
   const [customSize, setCustomSize] = useState("");
   const [customColorName, setCustomColorName] = useState("");
+  const [customColorCode, setCustomColorCode] = useState("");
   const [customColorHex, setCustomColorHex] = useState("#000000");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -91,9 +92,11 @@ export function VariantManagerClient({ productId, skuPrefix, existingVariants }:
 
   const addCustomColor = () => {
     const name = customColorName.trim();
+    const code = customColorCode.trim().toUpperCase() || name.substring(0, 3).toUpperCase();
     if (name && !selectedColors.some((c) => c.name === name)) {
-      setSelectedColors([...selectedColors, { name, hex: customColorHex }]);
+      setSelectedColors([...selectedColors, { name, hex: customColorHex, code }]);
       setCustomColorName("");
+      setCustomColorCode("");
       setCustomColorHex("#000000");
     }
   };
@@ -151,15 +154,12 @@ export function VariantManagerClient({ productId, skuPrefix, existingVariants }:
 
   const previewCount = selectedSizes.length * selectedColors.length;
   const previewSkus = selectedColors.flatMap((color) =>
-    selectedSizes.map((size) => {
-      const colorCode = color.name.substring(0, 3).toUpperCase();
-      return {
-        sku: `${skuPrefix}-${colorCode}-${size}`,
-        color,
-        size,
-        exists: existingByColorSize.has(`${color.name}|${size}`),
-      };
-    })
+    selectedSizes.map((size) => ({
+      sku: `${skuPrefix}-${color.code.toUpperCase()}-${size.toUpperCase()}`,
+      color,
+      size,
+      exists: existingByColorSize.has(`${color.name}|${size}`),
+    }))
   );
 
   return (
@@ -248,6 +248,7 @@ export function VariantManagerClient({ productId, skuPrefix, existingVariants }:
                   style={{ backgroundColor: color.hex }}
                 />
                 {color.name}
+                <span className="font-mono text-[10px] opacity-60">{color.code}</span>
               </button>
             );
           })}
@@ -269,28 +270,35 @@ export function VariantManagerClient({ productId, skuPrefix, existingVariants }:
               </button>
             ))}
         </div>
-        <div className="flex gap-2 max-w-md">
+        <div className="flex flex-wrap gap-2 max-w-xl">
           <Input
             value={customColorName}
             onChange={(e) => setCustomColorName(e.target.value)}
-            placeholder="Custom color name"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCustomColor();
-              }
-            }}
+            placeholder="Color name (e.g. Maroon)"
+            className="w-36"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomColor(); } }}
+          />
+          <Input
+            value={customColorCode}
+            onChange={(e) => setCustomColorCode(e.target.value.toUpperCase())}
+            placeholder="SKU code (e.g. 01)"
+            className="w-28 font-mono"
+            maxLength={10}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomColor(); } }}
           />
           <Input
             type="color"
             value={customColorHex}
             onChange={(e) => setCustomColorHex(e.target.value)}
-            className="w-16 p-1"
+            className="w-12 p-1"
           />
           <Button type="button" variant="outline" size="sm" onClick={addCustomColor}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          SKU code is what appears in the variant SKU — e.g. code <span className="font-mono">01</span> → <span className="font-mono">[prefix]-01-[size]</span>
+        </p>
       </div>
 
       {/* Preview & Generate */}

@@ -67,7 +67,9 @@ export async function POST(
 
   for (const color of colors) {
     for (const size of sizes) {
-      const sku = generateSku(product.skuPrefix, color.name, size);
+      // Use explicit code if provided, otherwise derive from first 3 letters of name
+      const colorCode = color.code ?? color.name.substring(0, 3).toUpperCase();
+      const sku = generateSku(product.skuPrefix, colorCode, size);
 
       // Check if variant already exists
       const existing = await prisma.productVariant.findUnique({ where: { sku } });

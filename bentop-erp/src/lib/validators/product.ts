@@ -34,6 +34,7 @@ export const variantGenerateSchema = z.object({
   colors: z.array(z.object({
     name: z.string().min(1),
     hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color"),
+    code: z.string().min(1).max(10).optional(), // explicit SKU code e.g. "01", "BLK"
   })).min(1, "At least one color is required"),
 });
 
