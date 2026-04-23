@@ -40,11 +40,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         category: { select: { id: true, name: true } },
         variants: {
           where: { isActive: true },
-          select: { id: true, color: true, colorHex: true, size: true },
+          select: { id: true, sku: true, color: true, colorHex: true, size: true, isActive: true },
+          orderBy: { sku: "asc" },
         },
         _count: { select: { variants: true } },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { skuPrefix: "asc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
@@ -94,11 +95,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
             baseCostMyr: p.baseCostMyr.toString(),
             isActive: p.isActive,
             variantCount: p._count.variants,
-            colors: Array.from(
-              new Map(
-                p.variants.map((v) => [v.color, { name: v.color, hex: v.colorHex || "#999" }])
-              ).values()
-            ),
+            variants: p.variants.map((v) => ({
+              id: v.id,
+              sku: v.sku,
+              color: v.color,
+              colorHex: v.colorHex || "#999",
+              size: v.size,
+              isActive: v.isActive,
+            })),
             updatedAt: p.updatedAt.toISOString(),
           }))}
           categories={categories}
