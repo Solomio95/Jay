@@ -4,21 +4,9 @@ import { Badge } from "@/components/ui/badge";
 
 const settingsSections = [
   {
-    title: "Company Profile",
-    description: "Company name, logo, address, and tax ID configuration",
-    href: null,
-    comingSoon: true,
-  },
-  {
     title: "User Management",
-    description: "Manage users, roles, and permissions",
-    href: null,
-    comingSoon: true,
-  },
-  {
-    title: "Locations",
-    description: "Configure warehouses, retail stores, and consignment locations",
-    href: "/inventory/locations",
+    description: "Create staff accounts, assign roles (Admin/Manager/Staff/Viewer), and manage access. Admin only.",
+    href: "/settings/users",
     comingSoon: false,
   },
   {
@@ -31,6 +19,18 @@ const settingsSections = [
     title: "Currency & Exchange Rates",
     description: "Configure currencies and manage exchange rates",
     href: "/settings/currency",
+    comingSoon: false,
+  },
+  {
+    title: "Locations",
+    description: "Configure warehouses, retail stores, and consignment locations",
+    href: "/inventory/locations",
+    comingSoon: false,
+  },
+  {
+    title: "Audit Log",
+    description: "Full history of all create, update, and delete actions across the system. Admin only.",
+    href: "/settings/audit-log",
     comingSoon: false,
   },
   {
