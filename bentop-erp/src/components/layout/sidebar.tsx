@@ -47,6 +47,8 @@ const navItems: NavItem[] = [
       { title: "Stock Levels", href: "/inventory/stock" },
       { title: "Transfers", href: "/inventory/transfers" },
       { title: "Adjustments", href: "/inventory/adjustments" },
+      { title: "Batches", href: "/inventory/batches" },
+      { title: "Alerts", href: "/inventory/alerts" },
       { title: "Reports", href: "/inventory/reports" },
     ],
   },
@@ -76,6 +78,13 @@ const navItems: NavItem[] = [
     title: "Settings",
     href: "/settings",
     icon: <Settings className="h-5 w-5" />,
+    children: [
+      { title: "Overview", href: "/settings" },
+      { title: "Users", href: "/settings/users" },
+      { title: "Sales Channels", href: "/settings/channels" },
+      { title: "Currency", href: "/settings/currency" },
+      { title: "Audit Log", href: "/settings/audit-log" },
+    ],
   },
 ];
 

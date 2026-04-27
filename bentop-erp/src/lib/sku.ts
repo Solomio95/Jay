@@ -9,8 +9,7 @@ export function generateSlug(name: string): string {
 }
 
 export function generateSku(prefix: string, colorCode: string, size: string): string {
-  const cleanColor = colorCode.substring(0, 3).toUpperCase();
-  return `${prefix}-${cleanColor}-${size.toUpperCase()}`;
+  return `${prefix}-${colorCode.toUpperCase()}-${size.toUpperCase()}`;
 }
 
 export function generateBarcode(): string {
