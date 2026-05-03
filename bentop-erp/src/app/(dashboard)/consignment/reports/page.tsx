@@ -1,13 +1,10 @@
-import { prisma } from "@/lib/db";
-import {
-  TrendingUp,
-  DollarSign,
-  Boxes,
-  Truck,
-  Users,
-  BarChart3,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { BarChart3, CalendarDays, Receipt, RotateCcw, Wallet } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -16,278 +13,143 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { prisma } from "@/lib/db";
+import { formatCurrency, formatDate } from "@/lib/utils";
+
+const REPORT_STATUS_COLOR: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
+  DRAFT: "secondary",
+  FINALIZED: "success",
+  CANCELLED: "destructive",
+};
 
 export default async function ConsignmentReportsPage() {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-
-  const shipments = await prisma.consignmentShipment.findMany({
-    where: { createdAt: { gte: ninetyDaysAgo } },
+  const reports = await prisma.consignmentReport.findMany({
     include: {
-      toLocation: { select: { id: true, name: true } },
-      items: {
+      partner: { select: { name: true } },
+      shipment: { select: { id: true, shipmentNumber: true } },
+      lines: {
         select: {
-          quantityShipped: true,
           quantitySold: true,
           quantityReturned: true,
-          unitPrice: true,
-          costAtShipment: true,
+          grossAmount: true,
+          commissionAmount: true,
+          netAmount: true,
+        },
+      },
+      invoices: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          status: true,
+          netAmount: true,
         },
       },
     },
+    orderBy: [{ periodEnd: "desc" }, { createdAt: "desc" }],
+    take: 100,
   });
 
-  // Per-partner aggregation
-  const byPartner: Record<
-    string,
-    {
-      partnerName: string;
-      locationName: string;
-      shipments: number;
-      unitsShipped: number;
-      unitsSold: number;
-      unitsReturned: number;
-      revenueGross: number;
-      commissionTotal: number;
-      costTotal: number;
-    }
-  > = {};
-
-  let totalShipped = 0;
-  let totalSold = 0;
-  let totalReturned = 0;
-  let totalRevenueGross = 0;
-  let totalCommission = 0;
-  let totalCost = 0;
-
-  for (const s of shipments) {
-    const key = `${s.partnerName}__${s.toLocationId}`;
-    const entry = byPartner[key] ?? {
-      partnerName: s.partnerName,
-      locationName: s.toLocation.name,
-      shipments: 0,
-      unitsShipped: 0,
-      unitsSold: 0,
-      unitsReturned: 0,
-      revenueGross: 0,
-      commissionTotal: 0,
-      costTotal: 0,
-    };
-    entry.shipments += 1;
-
-    for (const i of s.items) {
-      const rev = i.quantitySold * Number(i.unitPrice);
-      const com = (rev * Number(s.commissionRate)) / 100;
-      const cost = i.quantitySold * Number(i.costAtShipment);
-
-      entry.unitsShipped += i.quantityShipped;
-      entry.unitsSold += i.quantitySold;
-      entry.unitsReturned += i.quantityReturned;
-      entry.revenueGross += rev;
-      entry.commissionTotal += com;
-      entry.costTotal += cost;
-
-      totalShipped += i.quantityShipped;
-      totalSold += i.quantitySold;
-      totalReturned += i.quantityReturned;
-      totalRevenueGross += rev;
-      totalCommission += com;
-      totalCost += cost;
-    }
-
-    byPartner[key] = entry;
-  }
-
-  const sellThroughRate = totalShipped > 0 ? (totalSold / totalShipped) * 100 : 0;
-  const netRevenue = totalRevenueGross - totalCommission;
-  const grossProfit = netRevenue - totalCost;
-
-  // Status breakdown
-  const statusCounts: Record<string, number> = {};
-  for (const s of shipments) {
-    statusCounts[s.status] = (statusCounts[s.status] ?? 0) + 1;
-  }
-
-  const partnerRows = Object.values(byPartner)
-    .map((p) => ({
-      ...p,
-      sellThrough: p.unitsShipped > 0 ? (p.unitsSold / p.unitsShipped) * 100 : 0,
-      netRevenue: p.revenueGross - p.commissionTotal,
-      grossProfit: p.revenueGross - p.commissionTotal - p.costTotal,
-    }))
-    .sort((a, b) => b.revenueGross - a.revenueGross);
+  const totals = reports.reduce(
+    (sum, report) => {
+      const reportSold = report.lines.reduce((lineSum, line) => lineSum + line.quantitySold, 0);
+      const reportReturned = report.lines.reduce((lineSum, line) => lineSum + line.quantityReturned, 0);
+      return {
+        reports: sum.reports + 1,
+        sold: sum.sold + reportSold,
+        returned: sum.returned + reportReturned,
+        grossAmount: sum.grossAmount + Number(report.grossAmount),
+        commissionAmount: sum.commissionAmount + Number(report.commissionAmount),
+        netAmount: sum.netAmount + Number(report.netAmount),
+      };
+    },
+    { reports: 0, sold: 0, returned: 0, grossAmount: 0, commissionAmount: 0, netAmount: 0 },
+  );
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Consignment Reports</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Sales And Return Reports</h2>
         <p className="text-muted-foreground">
-          Partner performance, sell-through rates, and settlement summary (last 90 days).
+          Dated partner reports used to create consignment invoices.
         </p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Truck className="h-3.5 w-3.5" /> Shipments
-            </div>
-            <div className="text-2xl font-bold mt-1">{shipments.length}</div>
-            <div className="text-xs text-muted-foreground">total consignments</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Boxes className="h-3.5 w-3.5" /> Units Shipped
-            </div>
-            <div className="text-2xl font-bold mt-1">{totalShipped.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground">
-              {totalSold.toLocaleString()} sold
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <BarChart3 className="h-3.5 w-3.5" /> Sell-Through
-            </div>
-            <div className="text-2xl font-bold mt-1">{sellThroughRate.toFixed(1)}%</div>
-            <div className="text-xs text-muted-foreground">{totalReturned} returned</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <DollarSign className="h-3.5 w-3.5" /> Gross Revenue
-            </div>
-            <div className="text-2xl font-bold mt-1">
-              {formatCurrency(totalRevenueGross, "MYR")}
-            </div>
-            <div className="text-xs text-muted-foreground">before commission</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <TrendingUp className="h-3.5 w-3.5" /> Net Revenue
-            </div>
-            <div className="text-2xl font-bold mt-1">
-              {formatCurrency(netRevenue, "MYR")}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {formatCurrency(totalCommission, "MYR")} commission
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Users className="h-3.5 w-3.5" /> Partners
-            </div>
-            <div className="text-2xl font-bold mt-1">{partnerRows.length}</div>
-            <div className="text-xs text-muted-foreground">active consignees</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Metric icon={<CalendarDays className="h-3.5 w-3.5" />} label="Reports" value={totals.reports.toLocaleString()} />
+        <Metric icon={<BarChart3 className="h-3.5 w-3.5" />} label="Sold Units" value={totals.sold.toLocaleString()} />
+        <Metric icon={<RotateCcw className="h-3.5 w-3.5" />} label="Returned" value={totals.returned.toLocaleString()} />
+        <Metric icon={<Receipt className="h-3.5 w-3.5" />} label="Gross Sales" value={formatCurrency(totals.grossAmount, "MYR")} />
+        <Metric icon={<Wallet className="h-3.5 w-3.5" />} label="Net To Bentop" value={formatCurrency(totals.netAmount, "MYR")} />
       </div>
 
-      {/* Status breakdown */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Shipment Status</CardTitle>
+          <CardTitle className="text-base">Report Register</CardTitle>
+          <CardDescription>Latest dated sales and return reports by partner.</CardDescription>
         </CardHeader>
         <CardContent>
-          {Object.keys(statusCounts).length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No data.</p>
+          {reports.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No reports have been recorded yet.</p>
           ) : (
-            <div className="flex flex-wrap gap-3">
-              {Object.entries(statusCounts)
-                .sort(([, a], [, b]) => b - a)
-                .map(([status, count]) => (
-                  <div key={status} className="border rounded-lg p-3 min-w-[120px]">
-                    <div className="text-xs text-muted-foreground uppercase">
-                      {status.replace(/_/g, " ")}
-                    </div>
-                    <div className="text-xl font-bold mt-1">{count}</div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Partner performance table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Partner Performance</CardTitle>
-          <CardDescription>
-            Revenue, sell-through, and profitability by consignment partner
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {partnerRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No data.</p>
-          ) : (
-            <div className="border rounded-lg overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Report</TableHead>
+                    <TableHead>Period</TableHead>
                     <TableHead>Partner</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="text-right">Shipments</TableHead>
-                    <TableHead className="text-right">Shipped</TableHead>
+                    <TableHead>Shipment</TableHead>
                     <TableHead className="text-right">Sold</TableHead>
                     <TableHead className="text-right">Returned</TableHead>
-                    <TableHead className="text-right">Sell-Through</TableHead>
-                    <TableHead className="text-right">Gross Rev.</TableHead>
+                    <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Net to Bentop</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
+                    <TableHead className="text-right">Net Invoice</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {partnerRows.map((p) => (
-                    <TableRow key={`${p.partnerName}__${p.locationName}`}>
-                      <TableCell className="font-medium">{p.partnerName}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {p.locationName}
-                      </TableCell>
-                      <TableCell className="text-right">{p.shipments}</TableCell>
-                      <TableCell className="text-right">{p.unitsShipped}</TableCell>
-                      <TableCell className="text-right">{p.unitsSold}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {p.unitsReturned}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          variant={
-                            p.sellThrough >= 70
-                              ? "success"
-                              : p.sellThrough >= 40
-                                ? "warning"
-                                : "destructive"
-                          }
-                          className="text-xs"
-                        >
-                          {p.sellThrough.toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(p.revenueGross, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right text-amber-700">
-                        {formatCurrency(p.commissionTotal, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.netRevenue, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.grossProfit, "MYR")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {reports.map((report) => {
+                    const sold = report.lines.reduce((sum, line) => sum + line.quantitySold, 0);
+                    const returned = report.lines.reduce((sum, line) => sum + line.quantityReturned, 0);
+                    const invoice = report.invoices[0];
+
+                    return (
+                      <TableRow key={report.id}>
+                        <TableCell className="font-mono text-xs">{report.reportNumber}</TableCell>
+                        <TableCell className="text-xs">
+                          {formatDate(report.periodStart)} to {formatDate(report.periodEnd)}
+                        </TableCell>
+                        <TableCell>{report.partner.name}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <Link href={`/consignment/shipments/${report.shipment.id}`} className="hover:underline">
+                            {report.shipment.shipmentNumber}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right">{sold}</TableCell>
+                        <TableCell className="text-right">{returned}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(Number(report.grossAmount), "MYR")}</TableCell>
+                        <TableCell className="text-right text-amber-700">
+                          {formatCurrency(Number(report.commissionAmount), "MYR")}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(Number(report.netAmount), "MYR")}
+                        </TableCell>
+                        <TableCell>
+                          {invoice ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/consignment/invoices/${invoice.id}`}>{invoice.invoiceNumber}</Link>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Not issued</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={REPORT_STATUS_COLOR[report.status]}>{report.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -295,5 +157,27 @@ export default async function ConsignmentReportsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {icon}
+          {label}
+        </div>
+        <div className="mt-1 text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
   );
 }

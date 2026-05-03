@@ -134,15 +134,92 @@ async function main() {
     },
   });
 
-  const consignmentLoc = await prisma.location.create({
-    data: {
+  let consignmentLoc = await prisma.location.findFirst({
+    where: {
       name: "Consignment Partner XYZ",
       type: LocationType.CONSIGNMENT,
-      address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
-      contactPerson: "David Wong",
-      contactPhone: "+60145678901",
     },
   });
+
+  if (consignmentLoc) {
+    consignmentLoc = await prisma.location.update({
+      where: { id: consignmentLoc.id },
+      data: {
+        address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
+        contactPerson: "David Wong",
+        contactPhone: "+60145678901",
+      },
+    });
+  } else {
+    consignmentLoc = await prisma.location.create({
+      data: {
+        name: "Consignment Partner XYZ",
+        type: LocationType.CONSIGNMENT,
+        address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
+        contactPerson: "David Wong",
+        contactPhone: "+60145678901",
+      },
+    });
+  }
+
+  const billionPartner = await prisma.$transaction(async (tx) => {
+    const partner = await tx.consignmentPartner.upsert({
+      where: { locationId: consignmentLoc.id },
+      update: {
+        name: "Billion Group",
+        contactPerson: "Billion Consignment Team",
+        paymentTermsDays: 30,
+        isActive: true,
+      },
+      create: {
+        locationId: consignmentLoc.id,
+        name: "Billion Group",
+        contactPerson: "Billion Consignment Team",
+        paymentTermsDays: 30,
+        isActive: true,
+      },
+    });
+
+    await tx.consignmentCommissionTier.deleteMany({
+      where: { partnerId: partner.id },
+    });
+
+    await tx.consignmentCommissionTier.createMany({
+      data: [
+        {
+          partnerId: partner.id,
+          name: "Super Best Buy",
+          minPrice: 0,
+          maxPrice: 49.9,
+          commissionRate: 23,
+          sortOrder: 1,
+          isActive: true,
+        },
+        {
+          partnerId: partner.id,
+          name: "Best Buy",
+          minPrice: 50,
+          maxPrice: 109,
+          commissionRate: 25,
+          sortOrder: 2,
+          isActive: true,
+        },
+        {
+          partnerId: partner.id,
+          name: "Normal",
+          minPrice: 110,
+          maxPrice: null,
+          commissionRate: 32,
+          sortOrder: 3,
+          isActive: true,
+        },
+      ],
+    });
+
+    return partner;
+  });
+
+  console.log(`Consignment partner seeded: ${billionPartner.name}`);
 
   console.log("Locations seeded");
 

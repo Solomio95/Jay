@@ -20,8 +20,9 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function SalesReportsPage() {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
   const [currentOrders, previousOrders] = await Promise.all([
     prisma.order.findMany({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Send, DollarSign, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -128,9 +129,11 @@ export function ConsignmentShipmentActions({ shipmentId, status, items }: Props)
         </Button>
       )}
       {canRecordSales && (
-        <Button onClick={() => setOpen("record-sales")} size="sm" variant="default">
-          <DollarSign className="h-4 w-4 mr-1.5" />
-          Record Sales
+        <Button asChild size="sm" variant="default">
+          <Link href={`/consignment/shipments/${shipmentId}/reports/new`}>
+            <DollarSign className="h-4 w-4 mr-1.5" />
+            New Report
+          </Link>
         </Button>
       )}
       {canSettle && (

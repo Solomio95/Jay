@@ -8,10 +8,6 @@ import {
   ShoppingCart,
   LayoutDashboard,
   Boxes,
-  ArrowLeftRight,
-  ClipboardList,
-  BarChart3,
-  Users,
   Store,
   Settings,
   ChevronDown,
@@ -69,7 +65,9 @@ const navItems: NavItem[] = [
     children: [
       { title: "Overview", href: "/consignment" },
       { title: "New Shipment", href: "/consignment/shipments/new" },
+      { title: "Partners", href: "/consignment/partners" },
       { title: "Reports", href: "/consignment/reports" },
+      { title: "Invoices", href: "/consignment/invoices" },
     ],
   },
   {

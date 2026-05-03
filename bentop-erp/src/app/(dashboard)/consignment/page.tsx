@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   Truck,
   XCircle,
+  BarChart3,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,12 +34,16 @@ const STATUS_COLOR: Record<string, "default" | "secondary" | "success" | "warnin
 };
 
 export default async function ConsignmentPage() {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [
     draftCount,
     activeCount,
     settledRecent,
+    finalizedReportsRecent,
+    issuedInvoicesRecent,
+    unpaidInvoices,
     recent,
     allItemsActive,
   ] = await Promise.all([
@@ -47,6 +53,23 @@ export default async function ConsignmentPage() {
     }),
     prisma.consignmentShipment.count({
       where: { status: "SETTLED", settledAt: { gte: thirtyDaysAgo } },
+    }),
+    prisma.consignmentReport.findMany({
+      where: { status: "FINALIZED", finalizedAt: { gte: thirtyDaysAgo } },
+      select: {
+        grossAmount: true,
+        commissionAmount: true,
+        netAmount: true,
+        lines: { select: { quantitySold: true, quantityReturned: true } },
+      },
+    }),
+    prisma.consignmentInvoice.findMany({
+      where: { status: { in: ["ISSUED", "PAID"] }, invoiceDate: { gte: thirtyDaysAgo } },
+      select: { netAmount: true },
+    }),
+    prisma.consignmentInvoice.findMany({
+      where: { status: "ISSUED" },
+      select: { netAmount: true },
     }),
     prisma.consignmentShipment.findMany({
       include: {
@@ -75,6 +98,23 @@ export default async function ConsignmentPage() {
     (s, i) => s + (i.quantityShipped - i.quantitySold - i.quantityReturned),
     0
   );
+  const reportedUnitsSold = finalizedReportsRecent.reduce(
+    (sum, report) => sum + report.lines.reduce((lineSum, line) => lineSum + line.quantitySold, 0),
+    0,
+  );
+  const reportedUnitsReturned = finalizedReportsRecent.reduce(
+    (sum, report) => sum + report.lines.reduce((lineSum, line) => lineSum + line.quantityReturned, 0),
+    0,
+  );
+  const reportedNetRecent = finalizedReportsRecent.reduce(
+    (sum, report) => sum + Number(report.netAmount),
+    0,
+  );
+  const invoicedNetRecent = issuedInvoicesRecent.reduce(
+    (sum, invoice) => sum + Number(invoice.netAmount),
+    0,
+  );
+  const unpaidNet = unpaidInvoices.reduce((sum, invoice) => sum + Number(invoice.netAmount), 0);
 
   return (
     <div className="space-y-6">
@@ -128,6 +168,51 @@ export default async function ConsignmentPage() {
             </div>
             <div className="text-2xl font-bold mt-1 text-green-700">{settledRecent}</div>
             <div className="text-xs text-muted-foreground">Finalised last month</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <BarChart3 className="h-3.5 w-3.5" /> Reported Sold (30d)
+            </div>
+            <div className="text-2xl font-bold mt-1">{reportedUnitsSold.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground">
+              {reportedUnitsReturned.toLocaleString()} returned
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Reports (30d)
+            </div>
+            <div className="text-2xl font-bold mt-1">{finalizedReportsRecent.length}</div>
+            <div className="text-xs text-muted-foreground">
+              {formatCurrency(reportedNetRecent, "MYR")} net
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <FileText className="h-3.5 w-3.5" /> Invoiced (30d)
+            </div>
+            <div className="text-2xl font-bold mt-1">{formatCurrency(invoicedNetRecent, "MYR")}</div>
+            <div className="text-xs text-muted-foreground">Net amount issued</div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-amber-700 text-xs font-medium">
+              <AlertTriangle className="h-3.5 w-3.5" /> To Collect
+            </div>
+            <div className="text-2xl font-bold mt-1 text-amber-700">
+              {formatCurrency(unpaidNet, "MYR")}
+            </div>
+            <div className="text-xs text-muted-foreground">Issued invoices unpaid</div>
           </CardContent>
         </Card>
       </div>

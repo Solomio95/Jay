@@ -123,7 +123,8 @@ export default async function InventoryReportsPage() {
     .sort((a, b) => a.available - b.available);
 
   // Recent movements (last 30 days, grouped by type)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const movementCounts = await prisma.stockMovement.groupBy({
     by: ["movementType"],
     _count: { _all: true },

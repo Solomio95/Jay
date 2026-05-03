@@ -40,6 +40,8 @@ model User {
   transfersApproved  StockTransfer[]  @relation("TransferApproved")
   transfersCompleted StockTransfer[]  @relation("TransferCompleted")
   consignmentShipmentsCreated ConsignmentShipment[] @relation("ConsignmentCreatedBy")
+  consignmentReportsCreated ConsignmentReport[] @relation("ConsignmentReportCreatedBy")
+  consignmentReportsFinalized ConsignmentReport[] @relation("ConsignmentReportFinalizedBy")
 
   @@map("users")
 }
@@ -104,6 +106,7 @@ model Product {
 
   category Category         @relation(fields: [categoryId], references: [id])
   variants ProductVariant[]
+  consignmentOverrides ConsignmentCommissionOverride[]
 
   @@index([categoryId])
   @@map("products")
@@ -131,6 +134,7 @@ model ProductVariant {
   orderItems    OrderItem[]
   transferItems StockTransferItem[]
   consignmentItems ConsignmentShipmentItem[]
+  consignmentOverrides ConsignmentCommissionOverride[]
 
   @@index([productId])
   @@map("product_variants")
@@ -187,6 +191,7 @@ model Location {
   transfersTo    StockTransfer[] @relation("TransferTo")
   consignmentShipmentsFrom ConsignmentShipment[] @relation("ConsignmentFrom")
   consignmentShipmentsTo   ConsignmentShipment[] @relation("ConsignmentTo")
+  consignmentPartner ConsignmentPartner?
 
   @@map("locations")
 }
@@ -499,11 +504,93 @@ enum ConsignmentStatus {
   CANCELLED
 }
 
+enum ConsignmentReportStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
+}
+
+enum ConsignmentInvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+model ConsignmentPartner {
+  id                    String   @id @default(cuid())
+  locationId            String?  @unique
+  name                  String
+  contactPerson         String?
+  contactPhone          String?
+  contactEmail          String?
+  paymentTermsDays      Int?
+  defaultCommissionRate Decimal  @default(0) @db.Decimal(5, 2)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  location        Location?                        @relation(fields: [locationId], references: [id])
+  shipments       ConsignmentShipment[]
+  commissionTiers ConsignmentCommissionTier[]
+  overrides       ConsignmentCommissionOverride[]
+  reports         ConsignmentReport[]
+  invoices        ConsignmentInvoice[]
+
+  @@index([isActive])
+  @@map("consignment_partners")
+}
+
+model ConsignmentCommissionTier {
+  id             String   @id @default(cuid())
+  partnerId      String?
+  name           String
+  minPrice       Decimal  @db.Decimal(12, 2)
+  maxPrice       Decimal? @db.Decimal(12, 2)
+  commissionRate Decimal  @db.Decimal(5, 2)
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  partner ConsignmentPartner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([isActive])
+  @@map("consignment_commission_tiers")
+}
+
+model ConsignmentCommissionOverride {
+  id               String    @id @default(cuid())
+  partnerId        String
+  productId        String?
+  productVariantId String?
+  tierName         String
+  commissionRate   Decimal   @db.Decimal(5, 2)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isActive         Boolean   @default(true)
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  partner        ConsignmentPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  product        Product?           @relation(fields: [productId], references: [id])
+  productVariant ProductVariant?    @relation(fields: [productVariantId], references: [id])
+
+  @@index([partnerId])
+  @@index([productId])
+  @@index([productVariantId])
+  @@index([isActive])
+  @@map("consignment_commission_overrides")
+}
+
 model ConsignmentShipment {
   id               String            @id @default(cuid())
   shipmentNumber   String            @unique
   fromLocationId   String
   toLocationId     String
+  partnerId        String?
   partnerName      String
   partnerContact   String?
   commissionRate   Decimal           @default(0) @db.Decimal(5, 2)
@@ -518,11 +605,16 @@ model ConsignmentShipment {
 
   fromLocation Location @relation("ConsignmentFrom", fields: [fromLocationId], references: [id])
   toLocation   Location @relation("ConsignmentTo", fields: [toLocationId], references: [id])
+  partner      ConsignmentPartner? @relation(fields: [partnerId], references: [id])
   createdBy    User     @relation("ConsignmentCreatedBy", fields: [createdById], references: [id])
   items        ConsignmentShipmentItem[]
+  reports      ConsignmentReport[]
+  invoices     ConsignmentInvoice[]
 
+  @@unique([id, partnerId])
   @@index([status])
   @@index([toLocationId])
+  @@index([partnerId])
   @@index([createdAt])
   @@map("consignment_shipments")
 }
@@ -541,10 +633,139 @@ model ConsignmentShipmentItem {
   shipment       ConsignmentShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   productVariant ProductVariant      @relation(fields: [productVariantId], references: [id])
   batch          Batch?              @relation(fields: [batchId], references: [id])
+  reportLines    ConsignmentReportLine[]
 
+  @@unique([id, shipmentId])
   @@index([shipmentId])
   @@index([productVariantId])
   @@map("consignment_shipment_items")
+}
+
+model ConsignmentReport {
+  id               String                  @id @default(cuid())
+  reportNumber     String                  @unique
+  partnerId        String
+  shipmentId       String
+  status           ConsignmentReportStatus @default(DRAFT)
+  periodStart      DateTime
+  periodEnd        DateTime
+  grossAmount      Decimal                 @default(0) @db.Decimal(12, 2)
+  commissionAmount Decimal                 @default(0) @db.Decimal(12, 2)
+  netAmount        Decimal                 @default(0) @db.Decimal(12, 2)
+  notes            String?
+  createdById      String
+  finalizedById    String?
+  finalizedAt      DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  partner     ConsignmentPartner  @relation(fields: [partnerId], references: [id])
+  shipment    ConsignmentShipment @relation(fields: [shipmentId, partnerId], references: [id, partnerId])
+  createdBy   User                @relation("ConsignmentReportCreatedBy", fields: [createdById], references: [id])
+  finalizedBy User?               @relation("ConsignmentReportFinalizedBy", fields: [finalizedById], references: [id])
+  lines       ConsignmentReportLine[]
+  invoices    ConsignmentInvoice[]
+
+  @@unique([id, shipmentId])
+  @@unique([id, partnerId, shipmentId])
+  @@index([partnerId])
+  @@index([shipmentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("consignment_reports")
+}
+
+model ConsignmentReportLine {
+  id                 String  @id @default(cuid())
+  reportId           String
+  shipmentId         String
+  shipmentItemId     String
+  quantitySold       Int
+  quantityReturned   Int     @default(0)
+  actualUnitPrice    Decimal @db.Decimal(12, 2)
+  grossAmount        Decimal @db.Decimal(12, 2)
+  commissionTierName String
+  commissionRate     Decimal @db.Decimal(5, 2)
+  commissionAmount   Decimal @db.Decimal(12, 2)
+  netAmount          Decimal @db.Decimal(12, 2)
+  notes              String?
+
+  report       ConsignmentReport       @relation(fields: [reportId, shipmentId], references: [id, shipmentId], onDelete: Cascade)
+  shipmentItem ConsignmentShipmentItem @relation(fields: [shipmentItemId, shipmentId], references: [id, shipmentId])
+  invoiceLines ConsignmentInvoiceLine[]
+
+  @@unique([id, reportId])
+  @@index([reportId])
+  @@index([shipmentItemId])
+  @@index([shipmentId])
+  @@map("consignment_report_lines")
+}
+
+model ConsignmentInvoice {
+  id               String                   @id @default(cuid())
+  invoiceNumber    String                   @unique
+  partnerId        String
+  shipmentId       String
+  reportId         String                   @unique
+  status           ConsignmentInvoiceStatus @default(DRAFT)
+  invoiceDate      DateTime
+  dueDate          DateTime?
+  billToName       String
+  billToContact    String?
+  billToEmail      String?
+  billToPhone      String?
+  billToAddress    Json?
+  paymentTermsDays Int?
+  grossAmount      Decimal                  @default(0) @db.Decimal(12, 2)
+  commissionAmount Decimal                  @default(0) @db.Decimal(12, 2)
+  netAmount        Decimal                  @default(0) @db.Decimal(12, 2)
+  notes            String?
+  issuedAt         DateTime?
+  paidAt           DateTime?
+  voidedAt         DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  partner  ConsignmentPartner  @relation(fields: [partnerId], references: [id])
+  shipment ConsignmentShipment @relation(fields: [shipmentId], references: [id])
+  report   ConsignmentReport   @relation(fields: [reportId, partnerId, shipmentId], references: [id, partnerId, shipmentId])
+  lines    ConsignmentInvoiceLine[]
+
+  @@unique([id, reportId])
+  @@index([partnerId])
+  @@index([shipmentId])
+  @@index([reportId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("consignment_invoices")
+}
+
+model ConsignmentInvoiceLine {
+  id               String  @id @default(cuid())
+  invoiceId        String
+  reportId         String
+  reportLineId     String
+  description      String
+  sku              String
+  productName      String
+  color            String
+  size             String
+  quantitySold     Int
+  actualUnitPrice  Decimal @db.Decimal(12, 2)
+  grossAmount      Decimal @db.Decimal(12, 2)
+  commissionTierName String
+  commissionRate   Decimal @db.Decimal(5, 2)
+  commissionAmount Decimal @default(0) @db.Decimal(12, 2)
+  netAmount        Decimal @db.Decimal(12, 2)
+
+  invoice    ConsignmentInvoice    @relation(fields: [invoiceId, reportId], references: [id, reportId], onDelete: Cascade)
+  reportLine ConsignmentReportLine @relation(fields: [reportLineId, reportId], references: [id, reportId])
+
+  @@index([invoiceId])
+  @@index([reportId])
+  @@index([reportLineId])
+  @@map("consignment_invoice_lines")
 }
 
 // ─── Multi-Currency ─────────────────────────────────────────────
