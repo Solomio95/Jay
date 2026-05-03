@@ -3,6 +3,7 @@
 import { Bell, Search, LogOut, User, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -13,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 
 type HeaderProps = {
   user: {
@@ -163,14 +163,7 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => {
-                // Sign out via form POST
-                const form = document.createElement("form");
-                form.method = "POST";
-                form.action = "/api/auth/signout";
-                document.body.appendChild(form);
-                form.submit();
-              }}
+              onClick={() => signOut({ callbackUrl: "/login" })}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
