@@ -241,12 +241,53 @@ export async function finalizeConsignmentReport(
     },
   });
 
-  const invoice = await tx.consignmentInvoice.create({
-    data: buildConsignmentInvoiceCreateData({
-      invoiceNumber: generateConsignmentInvoiceNumber(),
-      invoiceDate: new Date(),
-      report,
-    }),
+  const invoiceCreateData = buildConsignmentInvoiceCreateData({
+    invoiceNumber: generateConsignmentInvoiceNumber(),
+    invoiceDate: new Date(),
+    report,
+  });
+  const invoiceLines = invoiceCreateData.lines.create;
+
+  const invoiceHeader = await tx.consignmentInvoice.create({
+    data: {
+      invoiceNumber: invoiceCreateData.invoiceNumber,
+      status: invoiceCreateData.status,
+      invoiceDate: invoiceCreateData.invoiceDate,
+      dueDate: invoiceCreateData.dueDate,
+      billToName: invoiceCreateData.billToName,
+      billToContact: invoiceCreateData.billToContact,
+      billToEmail: invoiceCreateData.billToEmail,
+      billToPhone: invoiceCreateData.billToPhone,
+      billToAddress: invoiceCreateData.billToAddress,
+      paymentTermsDays: invoiceCreateData.paymentTermsDays,
+      grossAmount: invoiceCreateData.grossAmount,
+      commissionAmount: invoiceCreateData.commissionAmount,
+      netAmount: invoiceCreateData.netAmount,
+      issuedAt: invoiceCreateData.issuedAt,
+      partner: { connect: { id: report.partnerId } },
+      shipment: { connect: { id: report.shipmentId } },
+      report: {
+        connect: {
+          id_partnerId_shipmentId: {
+            id: report.id,
+            partnerId: report.partnerId,
+            shipmentId: report.shipmentId,
+          },
+        },
+      },
+    },
+  });
+
+  await tx.consignmentInvoiceLine.createMany({
+    data: invoiceLines.map((line) => ({
+      ...line,
+      invoiceId: invoiceHeader.id,
+      reportId: report.id,
+    })),
+  });
+
+  const invoice = await tx.consignmentInvoice.findUniqueOrThrow({
+    where: { id: invoiceHeader.id },
     include: { lines: true },
   });
 
@@ -323,7 +364,7 @@ async function moveSoldStock(
   line: FinalizableReport["lines"][number],
   userId: string,
 ) {
-  await decrementConsigneeBatchStock(tx, report, line, line.quantitySold, async (batchId, take) => {
+  const stockMode = await decrementConsigneeStock(tx, report, line, line.quantitySold, async (batchId, take) => {
     await tx.stockMovement.create({
       data: {
         productVariantId: line.shipmentItem.productVariantId,
@@ -339,12 +380,14 @@ async function moveSoldStock(
     });
   });
 
-  await decrementAggregateStock(
-    tx,
-    line.shipmentItem.productVariantId,
-    report.shipment.toLocationId,
-    line.quantitySold,
-  );
+  if (stockMode === "batch") {
+    await decrementAggregateStock(
+      tx,
+      line.shipmentItem.productVariantId,
+      report.shipment.toLocationId,
+      line.quantitySold,
+    );
+  }
 }
 
 async function moveReturnedStock(
@@ -353,14 +396,16 @@ async function moveReturnedStock(
   line: FinalizableReport["lines"][number],
   userId: string,
 ) {
-  await decrementConsigneeBatchStock(tx, report, line, line.quantityReturned, async (batchId, take) => {
-    await incrementBatchStock(
-      tx,
-      line.shipmentItem.productVariantId,
-      report.shipment.fromLocationId,
-      batchId,
-      take,
-    );
+  const stockMode = await decrementConsigneeStock(tx, report, line, line.quantityReturned, async (batchId, take) => {
+    if (batchId) {
+      await incrementBatchStock(
+        tx,
+        line.shipmentItem.productVariantId,
+        report.shipment.fromLocationId,
+        batchId,
+        take,
+      );
+    }
 
     await tx.stockMovement.create({
       data: {
@@ -377,12 +422,14 @@ async function moveReturnedStock(
     });
   });
 
-  await decrementAggregateStock(
-    tx,
-    line.shipmentItem.productVariantId,
-    report.shipment.toLocationId,
-    line.quantityReturned,
-  );
+  if (stockMode === "batch") {
+    await decrementAggregateStock(
+      tx,
+      line.shipmentItem.productVariantId,
+      report.shipment.toLocationId,
+      line.quantityReturned,
+    );
+  }
   await incrementAggregateStock(
     tx,
     line.shipmentItem.productVariantId,
@@ -391,12 +438,12 @@ async function moveReturnedStock(
   );
 }
 
-async function decrementConsigneeBatchStock(
+async function decrementConsigneeStock(
   tx: Prisma.TransactionClient,
   report: FinalizableReport,
   line: FinalizableReport["lines"][number],
   quantity: number,
-  onMoved: (batchId: string, take: number) => Promise<void>,
+  onMoved: (batchId: string | null, take: number) => Promise<void>,
 ) {
   let remaining = quantity;
   const sourceRows = await tx.stockLevel.findMany({
@@ -416,6 +463,32 @@ async function decrementConsigneeBatchStock(
     include: { batch: true },
     orderBy: { batch: { productionDate: "asc" } },
   });
+
+  if (sourceRows.length === 0 && !line.shipmentItem.batchId) {
+    const aggregateRow = await tx.stockLevel.findFirst({
+      where: {
+        productVariantId: line.shipmentItem.productVariantId,
+        locationId: report.shipment.toLocationId,
+        batchId: null,
+      },
+    });
+
+    const available = aggregateRow?.quantityOnHand ?? 0;
+    if (available < quantity) {
+      throw getInsufficientConsigneeStockError({
+        requested: quantity,
+        remaining: quantity - available,
+        sku: line.shipmentItem.productVariant.sku,
+      });
+    }
+
+    await tx.stockLevel.update({
+      where: { id: aggregateRow!.id },
+      data: { quantityOnHand: { decrement: quantity } },
+    });
+    await onMoved(null, quantity);
+    return "aggregate";
+  }
 
   for (const row of sourceRows) {
     if (remaining <= 0) break;
@@ -439,6 +512,8 @@ async function decrementConsigneeBatchStock(
       sku: line.shipmentItem.productVariant.sku,
     });
   }
+
+  return "batch";
 }
 
 async function decrementAggregateStock(
