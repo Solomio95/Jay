@@ -9,9 +9,6 @@ export default auth((req) => {
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (isPublicPath) {
-    if (req.auth) {
-      return NextResponse.redirect(new URL("/", req.nextUrl.origin));
-    }
     return NextResponse.next();
   }
 
