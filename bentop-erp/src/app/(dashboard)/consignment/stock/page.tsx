@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
+import type { ReactNode } from "react";
 import { Boxes, Building2, PackageSearch, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +24,7 @@ type SearchParams = Promise<{
   page?: string;
 }>;
 
-const PAGE_SIZE = 100;
+const PRODUCT_PAGE_SIZE = 25;
 
 export default async function ConsignmentStockPage({
   searchParams,
@@ -35,7 +37,7 @@ export default async function ConsignmentStockPage({
   const partnerId = sp.partnerId ?? "";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
-  const consignmentLocationWhere = {
+  const consignmentLocationWhere: Prisma.LocationWhereInput = {
     isActive: true,
     type: "CONSIGNMENT" as const,
   };
@@ -57,55 +59,71 @@ export default async function ConsignmentStockPage({
     ? partners.find((partner) => partner.id === partnerId)
     : null;
   const effectiveLocationId = selectedPartner?.locationId ?? locationId;
+  const searchLower = search.toLowerCase();
+  const partnerLocationSearchIds = search
+    ? partners
+        .filter(
+          (partner) =>
+            partner.locationId && partner.name.toLowerCase().includes(searchLower),
+        )
+        .map((partner) => partner.locationId as string)
+    : [];
 
-  const where = {
-    batchId: null,
-    location: consignmentLocationWhere,
-    ...(effectiveLocationId ? { locationId: effectiveLocationId } : {}),
-    ...(search
-      ? {
+  const searchConditions: Prisma.StockLevelWhereInput[] = search
+    ? [
+        {
           productVariant: {
-            OR: [
-              { sku: { contains: search, mode: "insensitive" as const } },
-              { product: { name: { contains: search, mode: "insensitive" as const } } },
-              { product: { skuPrefix: { contains: search, mode: "insensitive" as const } } },
-            ],
+            is: { sku: { contains: search, mode: "insensitive" } },
           },
-        }
-      : {}),
+        },
+        {
+          productVariant: {
+            is: {
+              product: {
+                is: { name: { contains: search, mode: "insensitive" } },
+              },
+            },
+          },
+        },
+        {
+          productVariant: {
+            is: {
+              product: {
+                is: { skuPrefix: { contains: search, mode: "insensitive" } },
+              },
+            },
+          },
+        },
+        { location: { is: { name: { contains: search, mode: "insensitive" } } } },
+        ...(partnerLocationSearchIds.length > 0
+          ? [{ locationId: { in: partnerLocationSearchIds } }]
+          : []),
+      ]
+    : [];
+
+  const where: Prisma.StockLevelWhereInput = {
+    batchId: null,
+    location: { is: consignmentLocationWhere },
+    ...(effectiveLocationId ? { locationId: effectiveLocationId } : {}),
+    ...(search ? { OR: searchConditions } : {}),
   };
 
-  const [rows, allMatching] = await Promise.all([
-    prisma.stockLevel.findMany({
-      where,
-      include: {
-        location: { select: { id: true, name: true } },
-        productVariant: {
-          include: {
-            product: { select: { id: true, name: true, skuPrefix: true } },
-          },
+  const allMatching = await prisma.stockLevel.findMany({
+    where,
+    include: {
+      location: { select: { id: true, name: true } },
+      productVariant: {
+        include: {
+          product: { select: { id: true, name: true, skuPrefix: true } },
         },
       },
-      orderBy: [
-        { location: { name: "asc" } },
-        { productVariant: { product: { name: "asc" } } },
-        { productVariant: { sku: "asc" } },
-      ],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.stockLevel.findMany({
-      where,
-      select: {
-        quantityOnHand: true,
-        quantityReserved: true,
-        locationId: true,
-        productVariant: {
-          select: { productId: true, product: { select: { name: true } } },
-        },
-      },
-    }),
-  ]);
+    },
+    orderBy: [
+      { productVariant: { product: { name: "asc" } } },
+      { productVariant: { sku: "asc" } },
+      { location: { name: "asc" } },
+    ],
+  });
 
   const partnerByLocationId = new Map(
     partners
@@ -116,23 +134,47 @@ export default async function ConsignmentStockPage({
   const totalReserved = allMatching.reduce((sum, row) => sum + row.quantityReserved, 0);
   const activeLocations = new Set(allMatching.map((row) => row.locationId)).size;
   const productCount = new Set(allMatching.map((row) => row.productVariant.productId)).size;
-  const totalPages = Math.max(1, Math.ceil(allMatching.length / PAGE_SIZE));
 
   const productSummary = Object.values(
     allMatching.reduce<
-      Record<string, { productId: string; productName: string; units: number; locations: Set<string> }>
+      Record<
+        string,
+        {
+          productId: string;
+          productName: string;
+          skuPrefix: string;
+          units: number;
+          reserved: number;
+          variants: Set<string>;
+          locations: Set<string>;
+          rows: typeof allMatching;
+        }
+      >
     >((groups, row) => {
       const productId = row.productVariant.productId;
       groups[productId] ??= {
         productId,
         productName: row.productVariant.product.name,
+        skuPrefix: row.productVariant.product.skuPrefix,
         units: 0,
+        reserved: 0,
+        variants: new Set<string>(),
         locations: new Set<string>(),
+        rows: [],
       };
       groups[productId].units += row.quantityOnHand;
+      groups[productId].reserved += row.quantityReserved;
+      groups[productId].variants.add(row.productVariantId);
       groups[productId].locations.add(row.locationId);
+      groups[productId].rows.push(row);
       return groups;
     }, {}),
+  ).sort((a, b) => a.productName.localeCompare(b.productName));
+
+  const totalPages = Math.max(1, Math.ceil(productSummary.length / PRODUCT_PAGE_SIZE));
+  const visibleProducts = productSummary.slice(
+    (page - 1) * PRODUCT_PAGE_SIZE,
+    page * PRODUCT_PAGE_SIZE,
   );
 
   const queryForPage = (nextPage: number) => {
@@ -168,7 +210,12 @@ export default async function ConsignmentStockPage({
           <form className="grid gap-3 md:grid-cols-[1fr_240px_240px_auto]" action="/consignment/stock">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input name="search" defaultValue={search} className="pl-9" placeholder="Search SKU or product" />
+              <Input
+                name="search"
+                defaultValue={search}
+                className="pl-9"
+                placeholder="Search parent SKU, sub SKU, product, partner, or location"
+              />
             </div>
             <select
               name="partnerId"
@@ -203,61 +250,85 @@ export default async function ConsignmentStockPage({
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Location SKU Detail</CardTitle>
+            <CardTitle className="text-base">Parent Product / Sub SKU Stock</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Parent SKU / Product</TableHead>
+                  <TableHead>Sub SKU / Variant</TableHead>
                   <TableHead>Location / Partner</TableHead>
-                  <TableHead>SKU / Product</TableHead>
-                  <TableHead>Variant</TableHead>
                   <TableHead className="text-right">On Hand</TableHead>
                   <TableHead className="text-right">Reserved</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
+                {visibleProducts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       No consignment stock found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((row) => {
-                    const partner = partnerByLocationId.get(row.locationId);
-                    return (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="font-medium">{row.location.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {partner?.name ?? "No partner linked"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-mono text-xs">{row.productVariant.sku}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {row.productVariant.product.name}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span
-                              className="inline-block h-3 w-3 rounded-full ring-1 ring-border"
-                              style={{ backgroundColor: row.productVariant.colorHex || "#999" }}
-                            />
-                            {row.productVariant.color} / {row.productVariant.size}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {row.quantityOnHand.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {row.quantityReserved > 0 ? row.quantityReserved.toLocaleString() : "-"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  visibleProducts.flatMap((product) => [
+                    <TableRow key={product.productId} className="bg-muted/50">
+                      <TableCell>
+                        <div className="font-mono text-xs">{product.skuPrefix}</div>
+                        <div className="font-medium">{product.productName}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {product.variants.size.toLocaleString()} sub SKU(s)
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {product.locations.size.toLocaleString()} location(s)
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {product.units.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {product.reserved > 0 ? product.reserved.toLocaleString() : "-"}
+                      </TableCell>
+                    </TableRow>,
+                    ...product.rows.map((row) => {
+                      const partner = partnerByLocationId.get(row.locationId);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <div className="pl-3 text-xs text-muted-foreground">
+                              Sub SKU detail
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-mono text-xs">{row.productVariant.sku}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full ring-1 ring-border"
+                                style={{
+                                  backgroundColor: row.productVariant.colorHex || "#999",
+                                }}
+                              />
+                              {row.productVariant.color} / {row.productVariant.size}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{row.location.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {partner?.name ?? "No partner linked"}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {row.quantityOnHand.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {row.quantityReserved > 0
+                              ? row.quantityReserved.toLocaleString()
+                              : "-"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }),
+                  ])
                 )}
               </TableBody>
             </Table>
@@ -266,7 +337,7 @@ export default async function ConsignmentStockPage({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Product Summary</CardTitle>
+            <CardTitle className="text-base">Top Parent Products</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {productSummary.length === 0 ? (
@@ -280,7 +351,11 @@ export default async function ConsignmentStockPage({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">{product.productName}</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          {product.skuPrefix}
+                        </div>
                         <div className="text-xs text-muted-foreground">
+                          {product.variants.size.toLocaleString()} sub SKU(s) in{" "}
                           {product.locations.size.toLocaleString()} location(s)
                         </div>
                       </div>
@@ -293,11 +368,11 @@ export default async function ConsignmentStockPage({
         </Card>
       </div>
 
-      {allMatching.length > PAGE_SIZE && (
+      {productSummary.length > PRODUCT_PAGE_SIZE && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
-            Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, allMatching.length)} of{" "}
-            {allMatching.length}
+            Showing parent products {(page - 1) * PRODUCT_PAGE_SIZE + 1}-
+            {Math.min(page * PRODUCT_PAGE_SIZE, productSummary.length)} of {productSummary.length}
           </span>
           <div className="flex gap-2">
             <Button asChild size="sm" variant="outline" disabled={page <= 1}>
@@ -318,7 +393,7 @@ function Metric({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
 }) {
