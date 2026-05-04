@@ -81,13 +81,7 @@ const navItems: NavItem[] = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>(() => {
-    // Auto-expand the section that matches current path
-    const matching = navItems.find(
-      (item) => item.children && pathname.startsWith(item.href) && item.href !== "/"
-    );
-    return matching ? [matching.title] : [];
-  });
+  const [expandedItems, setExpandedItems] = useState<string[]>(["Inventory", "Sales", "Consignment"]);
 
   const toggleExpanded = (title: string) => {
     setExpandedItems((prev) =>
@@ -142,6 +136,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                         <TooltipTrigger asChild>
                           <Link
                             href={item.children[0].href}
+                            suppressHydrationWarning
                             className={cn(
                               "flex items-center justify-center h-10 w-full rounded-md transition-colors",
                               active
@@ -159,6 +154,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                         <button
                           onClick={() => toggleExpanded(item.title)}
                           aria-expanded={expanded}
+                          suppressHydrationWarning
                           className={cn(
                             "flex items-center w-full gap-3 px-3 h-10 rounded-md text-sm font-medium transition-colors",
                             active
@@ -184,6 +180,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                                 href={child.href}
                                 onClick={onNavigate}
                                 aria-current={pathname === child.href ? "page" : undefined}
+                                suppressHydrationWarning
                                 className={cn(
                                   "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
                                   pathname === child.href
@@ -207,6 +204,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                   <TooltipTrigger asChild>
                     <Link
                       href={item.href}
+                      suppressHydrationWarning
                       className={cn(
                         "flex items-center justify-center h-10 w-full rounded-md transition-colors",
                         active
@@ -223,6 +221,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <Link
                   key={item.title}
                   href={item.href}
+                  suppressHydrationWarning
                   className={cn(
                     "flex items-center gap-3 px-3 h-10 rounded-md text-sm font-medium transition-colors",
                     active
