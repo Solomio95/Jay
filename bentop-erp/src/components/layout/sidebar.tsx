@@ -10,7 +10,6 @@ import {
   Boxes,
   Store,
   Settings,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -64,8 +63,8 @@ const navItems: NavItem[] = [
     icon: <Boxes className="h-5 w-5" />,
     children: [
       { title: "Overview", href: "/consignment" },
+      { title: "Stock", href: "/consignment/stock" },
       { title: "New Shipment", href: "/consignment/shipments/new" },
-      { title: "Consignment Stock", href: "/consignment/stock" },
       { title: "Partners", href: "/consignment/partners" },
       { title: "Reports", href: "/consignment/reports" },
       { title: "Invoices", href: "/consignment/invoices" },
@@ -81,13 +80,6 @@ const navItems: NavItem[] = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>(["Inventory", "Sales", "Consignment"]);
-
-  const toggleExpanded = (title: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
-    );
-  };
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -126,7 +118,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <nav className="space-y-1 px-2">
             {navItems.map((item) => {
               const active = isActive(item.href);
-              const expanded = expandedItems.includes(item.title);
 
               if (item.children) {
                 return (
@@ -151,9 +142,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                       </Tooltip>
                     ) : (
                       <>
-                        <button
-                          onClick={() => toggleExpanded(item.title)}
-                          aria-expanded={expanded}
+                        <Link
+                          href={item.href}
+                          onClick={onNavigate}
                           suppressHydrationWarning
                           className={cn(
                             "flex items-center w-full gap-3 px-3 h-10 rounded-md text-sm font-medium transition-colors",
@@ -164,35 +155,26 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                         >
                           <span aria-hidden="true">{item.icon}</span>
                           <span className="flex-1 text-left">{item.title}</span>
-                          <ChevronDown
-                            aria-hidden="true"
-                            className={cn(
-                              "h-4 w-4 transition-transform",
-                              expanded && "rotate-180"
-                            )}
-                          />
-                        </button>
-                        {expanded && (
-                          <div className="ml-5 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-                            {item.children.map((child) => (
-                              <Link
-                                key={child.href}
-                                href={child.href}
-                                onClick={onNavigate}
-                                aria-current={pathname === child.href ? "page" : undefined}
-                                suppressHydrationWarning
-                                className={cn(
-                                  "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
-                                  pathname === child.href
-                                    ? "text-sidebar-accent-foreground font-medium bg-sidebar-accent/60"
-                                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/30"
-                                )}
-                              >
-                                {child.title}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
+                        </Link>
+                        <div className="ml-5 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                          {item.children.map((child) => (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={onNavigate}
+                              aria-current={pathname === child.href ? "page" : undefined}
+                              suppressHydrationWarning
+                              className={cn(
+                                "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
+                                pathname === child.href
+                                  ? "text-sidebar-accent-foreground font-medium bg-sidebar-accent/60"
+                                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/30"
+                              )}
+                            >
+                              {child.title}
+                            </Link>
+                          ))}
+                        </div>
                       </>
                     )}
                   </div>

@@ -45,7 +45,7 @@ export default async function ConsignmentPage() {
     issuedInvoicesRecent,
     unpaidInvoices,
     recent,
-    allItemsActive,
+    consignmentStockLevels,
   ] = await Promise.all([
     prisma.consignmentShipment.count({ where: { status: "DRAFT" } }),
     prisma.consignmentShipment.count({
@@ -86,17 +86,18 @@ export default async function ConsignmentPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
-    prisma.consignmentShipmentItem.findMany({
+    prisma.stockLevel.findMany({
       where: {
-        shipment: { status: { in: ["SHIPPED", "PARTIAL_SETTLED"] } },
+        batchId: null,
+        location: { type: "CONSIGNMENT", isActive: true },
       },
-      select: { quantityShipped: true, quantitySold: true, quantityReturned: true },
+      select: { quantityOnHand: true },
     }),
   ]);
 
-  const unitsOnConsignment = allItemsActive.reduce(
-    (s, i) => s + (i.quantityShipped - i.quantitySold - i.quantityReturned),
-    0
+  const unitsOnConsignment = consignmentStockLevels.reduce(
+    (sum, stockLevel) => sum + stockLevel.quantityOnHand,
+    0,
   );
   const reportedUnitsSold = finalizedReportsRecent.reduce(
     (sum, report) => sum + report.lines.reduce((lineSum, line) => lineSum + line.quantitySold, 0),
@@ -125,12 +126,20 @@ export default async function ConsignmentPage() {
             Track stock placed with consignee partners and record sales and settlements.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/consignment/shipments/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Shipment
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/consignment/stock">
+              <Boxes className="h-4 w-4 mr-2" />
+              View Stock
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/consignment/shipments/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Shipment
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -158,7 +167,7 @@ export default async function ConsignmentPage() {
               <Boxes className="h-3.5 w-3.5" /> Units on Consignment
             </div>
             <div className="text-2xl font-bold mt-1">{unitsOnConsignment.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground">Across active shipments</div>
+            <div className="text-xs text-muted-foreground">Current stock levels</div>
           </CardContent>
         </Card>
         <Card className="border-green-200">

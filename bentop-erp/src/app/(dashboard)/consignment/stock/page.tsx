@@ -3,7 +3,6 @@ import type { Prisma } from "@prisma/client";
 import type { ReactNode } from "react";
 import { Boxes, Building2, PackageSearch, Search } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -247,126 +246,92 @@ export default async function ConsignmentStockPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Parent Product / Sub SKU Stock</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Parent Product / Sub SKU Stock</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Parent SKU / Product</TableHead>
+                <TableHead>Sub SKU / Variant</TableHead>
+                <TableHead>Location / Partner</TableHead>
+                <TableHead className="text-right">On Hand</TableHead>
+                <TableHead className="text-right">Reserved</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleProducts.length === 0 ? (
                 <TableRow>
-                  <TableHead>Parent SKU / Product</TableHead>
-                  <TableHead>Sub SKU / Variant</TableHead>
-                  <TableHead>Location / Partner</TableHead>
-                  <TableHead className="text-right">On Hand</TableHead>
-                  <TableHead className="text-right">Reserved</TableHead>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No consignment stock found.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                      No consignment stock found.
+              ) : (
+                visibleProducts.flatMap((product) => [
+                  <TableRow key={product.productId} className="bg-muted/50">
+                    <TableCell>
+                      <div className="font-mono text-xs">{product.skuPrefix}</div>
+                      <div className="font-medium">{product.productName}</div>
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  visibleProducts.flatMap((product) => [
-                    <TableRow key={product.productId} className="bg-muted/50">
-                      <TableCell>
-                        <div className="font-mono text-xs">{product.skuPrefix}</div>
-                        <div className="font-medium">{product.productName}</div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {product.variants.size.toLocaleString()} sub SKU(s)
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {product.locations.size.toLocaleString()} location(s)
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {product.units.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {product.reserved > 0 ? product.reserved.toLocaleString() : "-"}
-                      </TableCell>
-                    </TableRow>,
-                    ...product.rows.map((row) => {
-                      const partner = partnerByLocationId.get(row.locationId);
-                      return (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            <div className="pl-3 text-xs text-muted-foreground">
-                              Sub SKU detail
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-mono text-xs">{row.productVariant.sku}</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span
-                                className="inline-block h-3 w-3 rounded-full ring-1 ring-border"
-                                style={{
-                                  backgroundColor: row.productVariant.colorHex || "#999",
-                                }}
-                              />
-                              {row.productVariant.color} / {row.productVariant.size}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{row.location.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {partner?.name ?? "No partner linked"}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {row.quantityOnHand.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {row.quantityReserved > 0
-                              ? row.quantityReserved.toLocaleString()
-                              : "-"}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }),
-                  ])
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top Parent Products</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {productSummary.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No products found.</p>
-            ) : (
-              productSummary
-                .sort((a, b) => b.units - a.units)
-                .slice(0, 20)
-                .map((product) => (
-                  <div key={product.productId} className="rounded-md border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{product.productName}</div>
-                        <div className="font-mono text-xs text-muted-foreground">
-                          {product.skuPrefix}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {product.variants.size.toLocaleString()} sub SKU(s) in{" "}
-                          {product.locations.size.toLocaleString()} location(s)
-                        </div>
-                      </div>
-                      <Badge variant="secondary">{product.units.toLocaleString()}</Badge>
-                    </div>
-                  </div>
-                ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {product.variants.size.toLocaleString()} sub SKU(s)
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {product.locations.size.toLocaleString()} location(s)
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {product.units.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {product.reserved > 0 ? product.reserved.toLocaleString() : "-"}
+                    </TableCell>
+                  </TableRow>,
+                  ...product.rows.map((row) => {
+                    const partner = partnerByLocationId.get(row.locationId);
+                    return (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <div className="pl-3 text-xs text-muted-foreground">
+                            Sub SKU detail
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-mono text-xs">{row.productVariant.sku}</div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span
+                              className="inline-block h-3 w-3 rounded-full ring-1 ring-border"
+                              style={{
+                                backgroundColor: row.productVariant.colorHex || "#999",
+                              }}
+                            />
+                            {row.productVariant.color} / {row.productVariant.size}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{row.location.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {partner?.name ?? "No partner linked"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {row.quantityOnHand.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {row.quantityReserved > 0
+                            ? row.quantityReserved.toLocaleString()
+                            : "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }),
+                ])
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {productSummary.length > PRODUCT_PAGE_SIZE && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
