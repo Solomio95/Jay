@@ -1,7 +1,118 @@
-import { PrismaClient, UserRole, LocationType, CustomerType, ChannelType, OrderStatus, PaymentStatus, Currency, MovementType, DiscountType, PromotionRuleMode } from "@prisma/client";
+import { Prisma, PrismaClient, UserRole, LocationType, CustomerType, ChannelType, OrderStatus, PaymentStatus, Currency, MovementType, DiscountType, PromotionRuleMode } from "@prisma/client";
 import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+type LocationSeed = {
+  name: string;
+  type: LocationType;
+  address: string;
+  contactPerson: string;
+  contactPhone: string;
+};
+
+type SalesChannelSeed = {
+  name: string;
+  type: ChannelType;
+  commissionRate: number;
+};
+
+type CustomerSeed = {
+  name: string;
+  email: string;
+  phone: string;
+  customerType: CustomerType;
+  companyName?: string;
+  taxId?: string;
+  creditLimitMyr?: number;
+  paymentTermsDays?: number;
+  addresses?: Prisma.InputJsonValue;
+};
+
+async function upsertSeedLocation(data: LocationSeed) {
+  const existing = await prisma.location.findFirst({
+    where: { name: data.name, type: data.type },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existing) {
+    return prisma.location.update({
+      where: { id: existing.id },
+      data: { ...data, isActive: true },
+    });
+  }
+
+  return prisma.location.create({ data });
+}
+
+async function upsertSeedSalesChannel(data: SalesChannelSeed) {
+  const existing = await prisma.salesChannel.findFirst({
+    where: { name: data.name, type: data.type },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existing) {
+    return prisma.salesChannel.update({
+      where: { id: existing.id },
+      data: { ...data, isActive: true },
+    });
+  }
+
+  return prisma.salesChannel.create({ data });
+}
+
+async function upsertSeedCustomer(data: CustomerSeed) {
+  const existing = await prisma.customer.findFirst({
+    where: { email: data.email },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existing) {
+    return prisma.customer.update({
+      where: { id: existing.id },
+      data: { ...data, isActive: true },
+    });
+  }
+
+  return prisma.customer.create({ data });
+}
+
+async function upsertSeedStockLevel(data: {
+  productVariantId: string;
+  locationId: string;
+  batchId?: string | null;
+  quantityOnHand: number;
+  reorderPoint: number;
+  reorderQuantity: number;
+}) {
+  const batchId = data.batchId ?? null;
+  const existing = await prisma.stockLevel.findFirst({
+    where: {
+      productVariantId: data.productVariantId,
+      locationId: data.locationId,
+      batchId,
+    },
+    orderBy: { id: "asc" },
+  });
+
+  if (existing) {
+    return prisma.stockLevel.update({
+      where: { id: existing.id },
+      data: {
+        quantityOnHand: data.quantityOnHand,
+        reorderPoint: data.reorderPoint,
+        reorderQuantity: data.reorderQuantity,
+      },
+    });
+  }
+
+  return prisma.stockLevel.create({
+    data: {
+      ...data,
+      batchId,
+    },
+  });
+}
 
 async function main() {
   console.log("Seeding database...");
@@ -116,54 +227,29 @@ async function main() {
   console.log("Categories seeded");
 
   // ─── Locations ────────────────────────────────────────
-  const warehouse = await prisma.location.create({
-    data: {
-      name: "Main Warehouse KL",
-      type: LocationType.WAREHOUSE,
-      address: "Lot 15, Jalan Industri 3, Taman Perindustrian, 47100 Puchong, Selangor",
-      contactPerson: "Ahmad Razak",
-      contactPhone: "+60123456789",
-    },
+  const warehouse = await upsertSeedLocation({
+    name: "Main Warehouse KL",
+    type: LocationType.WAREHOUSE,
+    address: "Lot 15, Jalan Industri 3, Taman Perindustrian, 47100 Puchong, Selangor",
+    contactPerson: "Ahmad Razak",
+    contactPhone: "+60123456789",
   });
 
-  const retailStore = await prisma.location.create({
-    data: {
-      name: "Retail Store Pavilion",
-      type: LocationType.RETAIL_STORE,
-      address: "Lot 3.12, Level 3, Pavilion KL, 168 Jalan Bukit Bintang, 55100 Kuala Lumpur",
-      contactPerson: "Mei Lin",
-      contactPhone: "+60187654321",
-    },
+  const retailStore = await upsertSeedLocation({
+    name: "Retail Store Pavilion",
+    type: LocationType.RETAIL_STORE,
+    address: "Lot 3.12, Level 3, Pavilion KL, 168 Jalan Bukit Bintang, 55100 Kuala Lumpur",
+    contactPerson: "Mei Lin",
+    contactPhone: "+60187654321",
   });
 
-  let consignmentLoc = await prisma.location.findFirst({
-    where: {
-      name: "Consignment Partner XYZ",
-      type: LocationType.CONSIGNMENT,
-    },
+  const consignmentLoc = await upsertSeedLocation({
+    name: "Consignment Partner XYZ",
+    type: LocationType.CONSIGNMENT,
+    address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
+    contactPerson: "David Wong",
+    contactPhone: "+60145678901",
   });
-
-  if (consignmentLoc) {
-    consignmentLoc = await prisma.location.update({
-      where: { id: consignmentLoc.id },
-      data: {
-        address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
-        contactPerson: "David Wong",
-        contactPhone: "+60145678901",
-        isActive: true,
-      },
-    });
-  } else {
-    consignmentLoc = await prisma.location.create({
-      data: {
-        name: "Consignment Partner XYZ",
-        type: LocationType.CONSIGNMENT,
-        address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
-        contactPerson: "David Wong",
-        contactPhone: "+60145678901",
-      },
-    });
-  }
 
   const promoter = await prisma.user.upsert({
     where: { email: "promoter@bentop.com" },
@@ -279,21 +365,11 @@ async function main() {
 
   // ─── Sales Channels ───────────────────────────────────
   const channels = await Promise.all([
-    prisma.salesChannel.create({
-      data: { name: "Pavilion Retail Store", type: ChannelType.PHYSICAL_STORE, commissionRate: 0 },
-    }),
-    prisma.salesChannel.create({
-      data: { name: "Shopee Malaysia", type: ChannelType.SHOPEE, commissionRate: 5.5 },
-    }),
-    prisma.salesChannel.create({
-      data: { name: "TikTok Shop", type: ChannelType.TIKTOK, commissionRate: 4.0 },
-    }),
-    prisma.salesChannel.create({
-      data: { name: "Wholesale B2B", type: ChannelType.WHOLESALE, commissionRate: 0 },
-    }),
-    prisma.salesChannel.create({
-      data: { name: "Consignment Partners", type: ChannelType.CONSIGNMENT, commissionRate: 20 },
-    }),
+    upsertSeedSalesChannel({ name: "Pavilion Retail Store", type: ChannelType.PHYSICAL_STORE, commissionRate: 0 }),
+    upsertSeedSalesChannel({ name: "Shopee Malaysia", type: ChannelType.SHOPEE, commissionRate: 5.5 }),
+    upsertSeedSalesChannel({ name: "TikTok Shop", type: ChannelType.TIKTOK, commissionRate: 4.0 }),
+    upsertSeedSalesChannel({ name: "Wholesale B2B", type: ChannelType.WHOLESALE, commissionRate: 0 }),
+    upsertSeedSalesChannel({ name: "Consignment Partners", type: ChannelType.CONSIGNMENT, commissionRate: 20 }),
   ]);
 
   console.log("Sales channels seeded");
@@ -503,95 +579,34 @@ async function main() {
   console.log("Promotions and leaderboard seeded");
 
   // ─── Stock Levels ─────────────────────────────────────
-  const locations = [warehouse, retailStore, consignmentLoc];
   for (const variant of allVariants) {
     // Warehouse always has stock
-    const warehouseStock = await prisma.stockLevel.findFirst({
-      where: {
-        productVariantId: variant.id,
-        locationId: warehouse.id,
-        batchId: null,
-      },
+    await upsertSeedStockLevel({
+      productVariantId: variant.id,
+      locationId: warehouse.id,
+      quantityOnHand: Math.floor(Math.random() * 80) + 5,
+      reorderPoint: 20,
+      reorderQuantity: 50,
     });
-    if (warehouseStock) {
-      await prisma.stockLevel.update({
-        where: { id: warehouseStock.id },
-        data: {
-          quantityOnHand: Math.floor(Math.random() * 80) + 5,
-          reorderPoint: 20,
-          reorderQuantity: 50,
-        },
-      });
-    } else {
-      await prisma.stockLevel.create({
-        data: {
-          productVariantId: variant.id,
-          locationId: warehouse.id,
-          quantityOnHand: Math.floor(Math.random() * 80) + 5,
-          reorderPoint: 20,
-          reorderQuantity: 50,
-        },
-      });
-    }
     // 60% chance of retail store stock
     if (Math.random() > 0.4) {
-      const retailStock = await prisma.stockLevel.findFirst({
-        where: {
-          productVariantId: variant.id,
-          locationId: retailStore.id,
-          batchId: null,
-        },
+      await upsertSeedStockLevel({
+        productVariantId: variant.id,
+        locationId: retailStore.id,
+        quantityOnHand: Math.floor(Math.random() * 15) + 1,
+        reorderPoint: 5,
+        reorderQuantity: 15,
       });
-      if (retailStock) {
-        await prisma.stockLevel.update({
-          where: { id: retailStock.id },
-          data: {
-            quantityOnHand: Math.floor(Math.random() * 15) + 1,
-            reorderPoint: 5,
-            reorderQuantity: 15,
-          },
-        });
-      } else {
-        await prisma.stockLevel.create({
-          data: {
-            productVariantId: variant.id,
-            locationId: retailStore.id,
-            quantityOnHand: Math.floor(Math.random() * 15) + 1,
-            reorderPoint: 5,
-            reorderQuantity: 15,
-          },
-        });
-      }
     }
     // 30% chance of consignment stock
     if (Math.random() > 0.7) {
-      const consignmentStock = await prisma.stockLevel.findFirst({
-        where: {
-          productVariantId: variant.id,
-          locationId: consignmentLoc.id,
-          batchId: null,
-        },
+      await upsertSeedStockLevel({
+        productVariantId: variant.id,
+        locationId: consignmentLoc.id,
+        quantityOnHand: Math.floor(Math.random() * 10) + 1,
+        reorderPoint: 3,
+        reorderQuantity: 10,
       });
-      if (consignmentStock) {
-        await prisma.stockLevel.update({
-          where: { id: consignmentStock.id },
-          data: {
-            quantityOnHand: Math.floor(Math.random() * 10) + 1,
-            reorderPoint: 3,
-            reorderQuantity: 10,
-          },
-        });
-      } else {
-        await prisma.stockLevel.create({
-          data: {
-            productVariantId: variant.id,
-            locationId: consignmentLoc.id,
-            quantityOnHand: Math.floor(Math.random() * 10) + 1,
-            reorderPoint: 3,
-            reorderQuantity: 10,
-          },
-        });
-      }
     }
   }
 
@@ -599,88 +614,68 @@ async function main() {
 
   // ─── Customers ────────────────────────────────────────
   const customers = await Promise.all([
-    prisma.customer.create({
-      data: {
-        name: "Sarah Ahmad",
-        email: "sarah@email.com",
-        phone: "+60123001001",
-        customerType: CustomerType.RETAIL,
-        addresses: JSON.parse('[{"type":"shipping","line1":"12 Jalan Ampang","city":"KL","state":"WP","postcode":"50450"}]'),
-      },
+    upsertSeedCustomer({
+      name: "Sarah Ahmad",
+      email: "sarah@email.com",
+      phone: "+60123001001",
+      customerType: CustomerType.RETAIL,
+      addresses: JSON.parse('[{"type":"shipping","line1":"12 Jalan Ampang","city":"KL","state":"WP","postcode":"50450"}]'),
     }),
-    prisma.customer.create({
-      data: {
-        name: "TechStyle Sdn Bhd",
-        email: "purchasing@techstyle.com",
-        phone: "+60321234567",
-        companyName: "TechStyle Sdn Bhd",
-        customerType: CustomerType.WHOLESALE,
-        taxId: "201901012345",
-        creditLimitMyr: 50000,
-        paymentTermsDays: 30,
-      },
+    upsertSeedCustomer({
+      name: "TechStyle Sdn Bhd",
+      email: "purchasing@techstyle.com",
+      phone: "+60321234567",
+      companyName: "TechStyle Sdn Bhd",
+      customerType: CustomerType.WHOLESALE,
+      taxId: "201901012345",
+      creditLimitMyr: 50000,
+      paymentTermsDays: 30,
     }),
-    prisma.customer.create({
-      data: {
-        name: "Fashion Hub Sdn Bhd",
-        email: "orders@fashionhub.com",
-        phone: "+60322345678",
-        companyName: "Fashion Hub Sdn Bhd",
-        customerType: CustomerType.CONSIGNMENT,
-        creditLimitMyr: 30000,
-        paymentTermsDays: 60,
-      },
+    upsertSeedCustomer({
+      name: "Fashion Hub Sdn Bhd",
+      email: "orders@fashionhub.com",
+      phone: "+60322345678",
+      companyName: "Fashion Hub Sdn Bhd",
+      customerType: CustomerType.CONSIGNMENT,
+      creditLimitMyr: 30000,
+      paymentTermsDays: 60,
     }),
-    prisma.customer.create({
-      data: {
-        name: "David Wong",
-        email: "david.w@email.com",
-        phone: "+60145001002",
-        customerType: CustomerType.RETAIL,
-      },
+    upsertSeedCustomer({
+      name: "David Wong",
+      email: "david.w@email.com",
+      phone: "+60145001002",
+      customerType: CustomerType.RETAIL,
     }),
-    prisma.customer.create({
-      data: {
-        name: "Aisha Boutique",
-        email: "aisha@boutique.com",
-        phone: "+60198001003",
-        companyName: "Aisha Boutique",
-        customerType: CustomerType.WHOLESALE,
-        creditLimitMyr: 20000,
-        paymentTermsDays: 14,
-      },
+    upsertSeedCustomer({
+      name: "Aisha Boutique",
+      email: "aisha@boutique.com",
+      phone: "+60198001003",
+      companyName: "Aisha Boutique",
+      customerType: CustomerType.WHOLESALE,
+      creditLimitMyr: 20000,
+      paymentTermsDays: 14,
     }),
-    prisma.customer.create({
-      data: {
-        name: "Metro Mall",
-        email: "vendor@metromall.com",
-        phone: "+60332001004",
-        companyName: "Metro Mall Sdn Bhd",
-        customerType: CustomerType.CONSIGNMENT,
-        creditLimitMyr: 40000,
-        paymentTermsDays: 45,
-      },
+    upsertSeedCustomer({
+      name: "Metro Mall",
+      email: "vendor@metromall.com",
+      phone: "+60332001004",
+      companyName: "Metro Mall Sdn Bhd",
+      customerType: CustomerType.CONSIGNMENT,
+      creditLimitMyr: 40000,
+      paymentTermsDays: 45,
     }),
-    prisma.customer.create({
-      data: { name: "Lim Mei Ying", email: "meiying@email.com", phone: "+60167001005", customerType: CustomerType.RETAIL },
+    upsertSeedCustomer({ name: "Lim Mei Ying", email: "meiying@email.com", phone: "+60167001005", customerType: CustomerType.RETAIL }),
+    upsertSeedCustomer({ name: "Raj Kumar", email: "raj@email.com", phone: "+60178001006", customerType: CustomerType.RETAIL }),
+    upsertSeedCustomer({
+      name: "Trendy Threads",
+      email: "buy@trendythreads.com",
+      phone: "+60342001007",
+      companyName: "Trendy Threads Enterprise",
+      customerType: CustomerType.WHOLESALE,
+      creditLimitMyr: 15000,
+      paymentTermsDays: 14,
     }),
-    prisma.customer.create({
-      data: { name: "Raj Kumar", email: "raj@email.com", phone: "+60178001006", customerType: CustomerType.RETAIL },
-    }),
-    prisma.customer.create({
-      data: {
-        name: "Trendy Threads",
-        email: "buy@trendythreads.com",
-        phone: "+60342001007",
-        companyName: "Trendy Threads Enterprise",
-        customerType: CustomerType.WHOLESALE,
-        creditLimitMyr: 15000,
-        paymentTermsDays: 14,
-      },
-    }),
-    prisma.customer.create({
-      data: { name: "Nurul Izzah", email: "nurul.i@email.com", phone: "+60189001008", customerType: CustomerType.RETAIL },
-    }),
+    upsertSeedCustomer({ name: "Nurul Izzah", email: "nurul.i@email.com", phone: "+60189001008", customerType: CustomerType.RETAIL }),
   ]);
 
   console.log("Customers seeded");
@@ -776,14 +771,30 @@ async function main() {
   console.log("Orders seeded: 50 sample orders");
 
   // ─── Exchange Rates ───────────────────────────────────
-  await prisma.exchangeRate.createMany({
-    data: [
-      { fromCurrency: Currency.USD, toCurrency: Currency.MYR, rate: 4.47, effectiveDate: new Date(), source: "Manual" },
-      { fromCurrency: Currency.RMB, toCurrency: Currency.MYR, rate: 0.62, effectiveDate: new Date(), source: "Manual" },
-      { fromCurrency: Currency.MYR, toCurrency: Currency.USD, rate: 0.224, effectiveDate: new Date(), source: "Manual" },
-      { fromCurrency: Currency.MYR, toCurrency: Currency.RMB, rate: 1.61, effectiveDate: new Date(), source: "Manual" },
-    ],
-  });
+  for (const exchangeRate of [
+    { fromCurrency: Currency.USD, toCurrency: Currency.MYR, rate: 4.47, effectiveDate: new Date(), source: "Manual" },
+    { fromCurrency: Currency.RMB, toCurrency: Currency.MYR, rate: 0.62, effectiveDate: new Date(), source: "Manual" },
+    { fromCurrency: Currency.MYR, toCurrency: Currency.USD, rate: 0.224, effectiveDate: new Date(), source: "Manual" },
+    { fromCurrency: Currency.MYR, toCurrency: Currency.RMB, rate: 1.61, effectiveDate: new Date(), source: "Manual" },
+  ]) {
+    const existing = await prisma.exchangeRate.findFirst({
+      where: {
+        fromCurrency: exchangeRate.fromCurrency,
+        toCurrency: exchangeRate.toCurrency,
+        source: exchangeRate.source,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (existing) {
+      await prisma.exchangeRate.update({
+        where: { id: existing.id },
+        data: exchangeRate,
+      });
+    } else {
+      await prisma.exchangeRate.create({ data: exchangeRate });
+    }
+  }
 
   console.log("Exchange rates seeded");
   console.log("Seeding complete!");

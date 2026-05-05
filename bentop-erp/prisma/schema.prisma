@@ -499,6 +499,7 @@ model OrderItem {
   batch          Batch?         @relation(fields: [batchId], references: [id])
   promoterReturns PromoterReturn[]
 
+  @@unique([id, orderId])
   @@index([orderId])
   @@map("order_items")
 }
@@ -616,12 +617,13 @@ model PromoterReturn {
   createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  orderItem OrderItem @relation(fields: [orderItemId, orderId], references: [id, orderId])
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
   location Location @relation(fields: [locationId], references: [id])
   promoter User @relation(fields: [promoterId], references: [id])
 
   @@index([orderId])
+  @@index([orderItemId, orderId])
   @@index([promoterId, createdAt])
   @@index([locationId])
   @@map("promoter_returns")
