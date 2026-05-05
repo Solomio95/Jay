@@ -22,7 +22,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar />
+        <Sidebar role={user.role} />
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -33,7 +33,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             onClick={() => setMobileMenuOpen(false)}
           />
           <div className="relative z-50 w-64 animate-in slide-in-from-left duration-200">
-            <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+            <Sidebar role={user.role} onNavigate={() => setMobileMenuOpen(false)} />
           </div>
         </div>
       )}
@@ -48,7 +48,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         </main>
       </div>
 
-      <MobileBottomNav />
+      <MobileBottomNav role={user.role} />
       <InstallPrompt />
     </div>
   );

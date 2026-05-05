@@ -8,6 +8,8 @@ import {
   ShoppingCart,
   Boxes,
   Settings,
+  RotateCcw,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +21,16 @@ const items = [
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function MobileBottomNav() {
+const promoterItems = [
+  { title: "Sale", href: "/promoter/sales/new", icon: ShoppingCart },
+  { title: "Return", href: "/promoter/returns", icon: RotateCcw },
+  { title: "Stock", href: "/promoter/stock", icon: Boxes },
+  { title: "Board", href: "/promoter/leaderboard", icon: Trophy },
+];
+
+export function MobileBottomNav({ role }: { role?: string } = {}) {
   const pathname = usePathname();
+  const navItems = role === "PROMOTER" ? promoterItems : items;
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -30,7 +40,7 @@ export function MobileBottomNav() {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t safe-bottom" aria-label="Mobile navigation">
       <div className="flex items-center justify-around h-14" role="menubar">
-        {items.map((item) => {
+        {navItems.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
           return (

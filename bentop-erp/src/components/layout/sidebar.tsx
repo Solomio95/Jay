@@ -10,6 +10,9 @@ import {
   Boxes,
   Store,
   Settings,
+  RotateCcw,
+  ArrowLeftRight,
+  Trophy,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -77,9 +80,44 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
+const promoterNavItems: NavItem[] = [
+  {
+    title: "New Sale",
+    href: "/promoter/sales/new",
+    icon: <ShoppingCart className="h-5 w-5" />,
+  },
+  {
+    title: "Returns",
+    href: "/promoter/returns",
+    icon: <RotateCcw className="h-5 w-5" />,
+  },
+  {
+    title: "Stock",
+    href: "/promoter/stock",
+    icon: <Boxes className="h-5 w-5" />,
+  },
+  {
+    title: "Transfers",
+    href: "/promoter/transfers",
+    icon: <ArrowLeftRight className="h-5 w-5" />,
+  },
+  {
+    title: "Leaderboard",
+    href: "/promoter/leaderboard",
+    icon: <Trophy className="h-5 w-5" />,
+  },
+];
+
+export function Sidebar({
+  role,
+  onNavigate,
+}: {
+  role?: string;
+  onNavigate?: () => void;
+} = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const items = role === "PROMOTER" ? promoterNavItems : navItems;
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -116,7 +154,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         {/* Navigation */}
         <ScrollArea className="flex-1 py-3">
           <nav className="space-y-1 px-2">
-            {navItems.map((item) => {
+            {items.map((item) => {
               const active = isActive(item.href);
 
               if (item.children) {
