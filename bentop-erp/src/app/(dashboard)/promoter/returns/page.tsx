@@ -7,44 +7,76 @@ import { Input } from "@/components/ui/input";
 type OrderItem = {
   id: string;
   quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes: string | null;
   productVariant: {
     sku: string;
     color: string;
     size: string;
-    product: { name: string };
+    product: { name: string; skuPrefix: string };
   };
+};
+
+type PromoterOrder = {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  location: { name: string } | null;
+  customer: { name: string; phone: string | null } | null;
+  totalAmount: number;
+  items: OrderItem[];
 };
 
 export default function PromoterReturnsPage() {
   const [search, setSearch] = useState("");
-  const [orders, setOrders] = useState<Array<{ id: string; orderNumber: string }>>([]);
-  const [selectedOrder, setSelectedOrder] = useState<{ id: string; orderNumber: string; items: OrderItem[] } | null>(null);
+  const [orders, setOrders] = useState<PromoterOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<PromoterOrder | null>(null);
+  const [returnDrafts, setReturnDrafts] = useState<Record<string, { quantity: number; reason: string }>>({});
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   async function searchOrders() {
-    const response = await fetch(`/api/v1/orders?search=${encodeURIComponent(search)}&limit=10`);
+    setLoading(true);
+    setMessage("");
+    const params = new URLSearchParams({ limit: "10" });
+    if (search.trim()) params.set("search", search.trim());
+    const response = await fetch(`/api/v1/promoter/sales?${params.toString()}`);
     const json = await response.json();
+    if (!response.ok) {
+      setMessage(json.error?.message ?? "Unable to search sales.");
+      setLoading(false);
+      return;
+    }
     setOrders(json.data ?? []);
-  }
-
-  async function loadOrder(id: string) {
-    const response = await fetch(`/api/v1/orders/${id}`);
-    const json = await response.json();
-    setSelectedOrder(json.data ?? null);
+    setSelectedOrder(null);
+    setLoading(false);
   }
 
   async function submitReturn(orderItemId: string) {
     if (!selectedOrder) return;
-    const quantity = Number(window.prompt("Return quantity?", "1"));
+    const draft = returnDrafts[orderItemId] ?? { quantity: 1, reason: "Customer return" };
+    const quantity = Number(draft.quantity);
     if (!quantity || quantity < 1) return;
-    const reason = window.prompt("Reason?", "Customer return") ?? "";
+    setMessage("");
     const response = await fetch("/api/v1/promoter/returns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: selectedOrder.id, orderItemId, quantity, reason }),
+      body: JSON.stringify({
+        orderId: selectedOrder.id,
+        orderItemId,
+        quantity,
+        reason: draft.reason,
+      }),
     });
     const json = await response.json();
     setMessage(response.ok ? "Return submitted." : json.error?.message ?? "Return failed.");
+    if (response.ok) {
+      setReturnDrafts((current) => ({
+        ...current,
+        [orderItemId]: { quantity: 1, reason: "Customer return" },
+      }));
+    }
   }
 
   return (
@@ -54,41 +86,101 @@ export default function PromoterReturnsPage() {
         <p className="text-sm text-muted-foreground">Returns must link to an original sale.</p>
       </div>
       <div className="flex gap-2">
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number" />
-        <Button type="button" onClick={searchOrders}>Search</Button>
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void searchOrders();
+          }}
+          placeholder="Search order number, SKU, product, or customer"
+        />
+        <Button type="button" onClick={searchOrders} disabled={loading}>
+          Search
+        </Button>
       </div>
       <div className="flex flex-wrap gap-2">
         {orders.map((order) => (
-          <Button key={order.id} type="button" variant="outline" onClick={() => loadOrder(order.id)}>
-            {order.orderNumber}
+          <Button
+            key={order.id}
+            type="button"
+            variant={selectedOrder?.id === order.id ? "default" : "outline"}
+            onClick={() => setSelectedOrder(order)}
+          >
+            {order.orderNumber} / RM {order.totalAmount.toFixed(2)}
           </Button>
         ))}
       </div>
       {selectedOrder && (
         <section className="overflow-hidden rounded-md border bg-background">
-          <div className="border-b bg-muted/50 px-3 py-2 font-semibold">{selectedOrder.orderNumber}</div>
+          <div className="border-b bg-muted/50 px-3 py-2">
+            <div className="font-semibold">{selectedOrder.orderNumber}</div>
+            <div className="text-xs text-muted-foreground">
+              {selectedOrder.location?.name ?? "-"} /{" "}
+              {selectedOrder.customer?.name ?? "Walk-in"}
+            </div>
+          </div>
           <table className="w-full text-sm">
             <thead className="text-left text-muted-foreground">
               <tr>
                 <th className="p-2">SKU</th>
                 <th className="p-2">Item</th>
                 <th className="p-2 text-right">Sold</th>
+                <th className="p-2 text-right">Qty</th>
+                <th className="p-2">Reason</th>
                 <th className="p-2 text-right">Return</th>
               </tr>
             </thead>
             <tbody>
-              {selectedOrder.items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="p-2 font-medium">{item.productVariant.sku}</td>
-                  <td className="p-2 text-muted-foreground">
-                    {item.productVariant.product.name} / {item.productVariant.color} / {item.productVariant.size}
-                  </td>
-                  <td className="p-2 text-right">{item.quantity}</td>
-                  <td className="p-2 text-right">
-                    <Button type="button" size="sm" onClick={() => submitReturn(item.id)}>Return</Button>
-                  </td>
-                </tr>
-              ))}
+              {selectedOrder.items.map((item) => {
+                const draft = returnDrafts[item.id] ?? { quantity: 1, reason: "Customer return" };
+                return (
+                  <tr key={item.id} className="border-t">
+                    <td className="p-2 font-medium">{item.productVariant.sku}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {item.productVariant.product.name} / {item.productVariant.color} / {item.productVariant.size}
+                    </td>
+                    <td className="p-2 text-right">{item.quantity}</td>
+                    <td className="p-2 text-right">
+                      <Input
+                        className="ml-auto w-20 text-right"
+                        type="number"
+                        min={1}
+                        max={item.quantity}
+                        value={draft.quantity}
+                        onChange={(event) =>
+                          setReturnDrafts((current) => ({
+                            ...current,
+                            [item.id]: {
+                              ...draft,
+                              quantity: Math.min(
+                                item.quantity,
+                                Math.max(1, Number(event.target.value)),
+                              ),
+                            },
+                          }))
+                        }
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={draft.reason}
+                        onChange={(event) =>
+                          setReturnDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, reason: event.target.value },
+                          }))
+                        }
+                        placeholder="Reason"
+                      />
+                    </td>
+                    <td className="p-2 text-right">
+                      <Button type="button" size="sm" onClick={() => submitReturn(item.id)}>
+                        Return
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
