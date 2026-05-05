@@ -204,7 +204,7 @@ export async function getPromoterSalesHistory(input: {
       location: { select: { id: true, name: true } },
       items: {
         include: {
-          promoterReturns: { select: { quantity: true } },
+          promoterReturns: { select: { amount: true, quantity: true } },
           productVariant: {
             select: {
               id: true,
@@ -221,7 +221,26 @@ export async function getPromoterSalesHistory(input: {
     take: Math.min(Math.max(limit ?? 50, 1), 100),
   });
 
-  return orders.map((order) => ({
+  return orders.map((order) => {
+    const items = order.items.map((item) => ({
+      id: item.id,
+      quantity: item.quantity,
+      ...summarizePromoterSaleHistoryItem({
+        quantity: item.quantity,
+        totalPrice: Number(item.totalPrice),
+        promoterReturns: item.promoterReturns,
+      }),
+      unitPrice: Number(item.unitPrice),
+      totalPrice: Number(item.totalPrice),
+      notes: item.notes,
+      productVariant: item.productVariant,
+    }));
+    const returnedAmount = roundMoney(
+      items.reduce((sum, item) => sum + item.returnedAmount, 0),
+    );
+    const netAmount = roundMoney(Math.max(0, Number(order.totalAmount) - returnedAmount));
+
+    return {
     id: order.id,
     orderNumber: order.orderNumber,
     createdAt: order.createdAt.toISOString(),
@@ -232,32 +251,38 @@ export async function getPromoterSalesHistory(input: {
     customer: order.customer,
     subtotal: Number(order.subtotal),
     totalAmount: Number(order.totalAmount),
+    returnedAmount,
+    netAmount,
     itemCount: order.items.length,
     quantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
-    items: order.items.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-      ...summarizePromoterSaleHistoryItem(item),
-      unitPrice: Number(item.unitPrice),
-      totalPrice: Number(item.totalPrice),
-      notes: item.notes,
-      productVariant: item.productVariant,
-    })),
-  }));
+    returnedQuantity: items.reduce((sum, item) => sum + item.returnedQuantity, 0),
+    netQuantity: items.reduce((sum, item) => sum + item.returnableQuantity, 0),
+    items,
+    };
+  });
 }
 
 export function summarizePromoterSaleHistoryItem(input: {
   quantity: number;
-  promoterReturns: Array<{ quantity: number }>;
+  totalPrice: number;
+  promoterReturns: Array<{ amount: unknown; quantity: number }>;
 }) {
   const returnedQuantity = input.promoterReturns.reduce(
     (sum, promoterReturn) => sum + promoterReturn.quantity,
     0,
   );
+  const returnedAmount = roundMoney(
+    input.promoterReturns.reduce(
+      (sum, promoterReturn) => sum + Number(promoterReturn.amount),
+      0,
+    ),
+  );
 
   return {
     returnedQuantity,
     returnableQuantity: Math.max(0, input.quantity - returnedQuantity),
+    returnedAmount,
+    netAmount: roundMoney(Math.max(0, input.totalPrice - returnedAmount)),
   };
 }
 

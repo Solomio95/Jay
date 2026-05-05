@@ -9,8 +9,12 @@ import { Input } from "@/components/ui/input";
 type SalesHistoryItem = {
   id: string;
   quantity: number;
+  returnedQuantity: number;
+  returnableQuantity: number;
   unitPrice: number;
   totalPrice: number;
+  returnedAmount: number;
+  netAmount: number;
   notes: string | null;
   productVariant: {
     sku: string;
@@ -30,7 +34,11 @@ type SalesHistoryOrder = {
   location: { name: string } | null;
   customer: { name: string; phone: string | null } | null;
   totalAmount: number;
+  returnedAmount: number;
+  netAmount: number;
   quantity: number;
+  returnedQuantity: number;
+  netQuantity: number;
   items: SalesHistoryItem[];
 };
 
@@ -45,8 +53,12 @@ export default function PromoterSalesHistoryPage() {
 
   const totals = useMemo(
     () => ({
-      sales: orders.reduce((sum, order) => sum + order.totalAmount, 0),
+      grossSales: orders.reduce((sum, order) => sum + order.totalAmount, 0),
+      returned: orders.reduce((sum, order) => sum + order.returnedAmount, 0),
+      netSales: orders.reduce((sum, order) => sum + order.netAmount, 0),
       quantity: orders.reduce((sum, order) => sum + order.quantity, 0),
+      returnedQuantity: orders.reduce((sum, order) => sum + order.returnedQuantity, 0),
+      netQuantity: orders.reduce((sum, order) => sum + order.netQuantity, 0),
     }),
     [orders],
   );
@@ -111,10 +123,12 @@ export default function PromoterSalesHistoryPage() {
         </Button>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-5">
         <SummaryStat label="Orders" value={orders.length.toString()} />
-        <SummaryStat label="Quantity" value={totals.quantity.toString()} />
-        <SummaryStat label="Sales" value={`RM ${totals.sales.toFixed(2)}`} />
+        <SummaryStat label="Sold Qty" value={totals.quantity.toString()} />
+        <SummaryStat label="Returned Qty" value={totals.returnedQuantity.toString()} />
+        <SummaryStat label="Returned" value={`RM ${totals.returned.toFixed(2)}`} />
+        <SummaryStat label="Net Sales" value={`RM ${totals.netSales.toFixed(2)}`} />
       </section>
 
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
@@ -127,7 +141,9 @@ export default function PromoterSalesHistoryPage() {
               <th className="p-2">Location / Customer</th>
               <th className="p-2">Items</th>
               <th className="p-2 text-right">Qty</th>
-              <th className="p-2 text-right">Total</th>
+              <th className="p-2 text-right">Gross</th>
+              <th className="p-2 text-right">Returned</th>
+              <th className="p-2 text-right">Net</th>
             </tr>
           </thead>
           <tbody>
@@ -157,25 +173,40 @@ export default function PromoterSalesHistoryPage() {
                           {" "}
                           x{item.quantity} @ RM {item.unitPrice.toFixed(2)}
                         </span>
+                        {item.returnedQuantity > 0 && (
+                          <span className="text-red-600">
+                            {" "}
+                            returned {item.returnedQuantity} / -RM {item.returnedAmount.toFixed(2)}
+                          </span>
+                        )}
                         {item.notes && <span className="text-emerald-700"> Promo</span>}
                       </div>
                     ))}
                   </div>
                 </td>
-                <td className="p-2 text-right">{order.quantity}</td>
-                <td className="p-2 text-right font-semibold">RM {order.totalAmount.toFixed(2)}</td>
+                <td className="p-2 text-right">
+                  <div>{order.quantity}</div>
+                  {order.returnedQuantity > 0 && (
+                    <div className="text-xs text-red-600">-{order.returnedQuantity}</div>
+                  )}
+                </td>
+                <td className="p-2 text-right">RM {order.totalAmount.toFixed(2)}</td>
+                <td className="p-2 text-right text-red-600">
+                  {order.returnedAmount > 0 ? `-RM ${order.returnedAmount.toFixed(2)}` : "-"}
+                </td>
+                <td className="p-2 text-right font-semibold">RM {order.netAmount.toFixed(2)}</td>
               </tr>
             ))}
             {!loading && orders.length === 0 && (
               <tr>
-                <td className="p-6 text-center text-muted-foreground" colSpan={5}>
+                <td className="p-6 text-center text-muted-foreground" colSpan={7}>
                   No sales found.
                 </td>
               </tr>
             )}
             {loading && (
               <tr>
-                <td className="p-6 text-center text-muted-foreground" colSpan={5}>
+                <td className="p-6 text-center text-muted-foreground" colSpan={7}>
                   Loading sales...
                 </td>
               </tr>

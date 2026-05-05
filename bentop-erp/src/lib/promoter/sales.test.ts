@@ -94,11 +94,17 @@ describe("summarizePromoterSaleHistoryItem", () => {
     assert.deepEqual(
       summarizePromoterSaleHistoryItem({
         quantity: 3,
-        promoterReturns: [{ quantity: 1 }, { quantity: 1 }],
+        totalPrice: 150,
+        promoterReturns: [
+          { quantity: 1, amount: 50 },
+          { quantity: 1, amount: 50 },
+        ],
       }),
       {
         returnedQuantity: 2,
         returnableQuantity: 1,
+        returnedAmount: 100,
+        netAmount: 50,
       },
     );
   });
@@ -107,11 +113,14 @@ describe("summarizePromoterSaleHistoryItem", () => {
     assert.deepEqual(
       summarizePromoterSaleHistoryItem({
         quantity: 1,
-        promoterReturns: [{ quantity: 2 }],
+        totalPrice: 50,
+        promoterReturns: [{ quantity: 2, amount: 100 }],
       }),
       {
         returnedQuantity: 2,
         returnableQuantity: 0,
+        returnedAmount: 100,
+        netAmount: 0,
       },
     );
   });
