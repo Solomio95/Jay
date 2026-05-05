@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, LocationType, CustomerType, ChannelType, OrderStatus, PaymentStatus, Currency, MovementType, DiscountType } from "@prisma/client";
+import { PrismaClient, UserRole, LocationType, CustomerType, ChannelType, OrderStatus, PaymentStatus, Currency, MovementType, DiscountType, PromotionRuleMode } from "@prisma/client";
 import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -9,6 +9,8 @@ async function main() {
   // ─── Users ────────────────────────────────────────────
   const passwordHash = await hash("admin123", 12);
   const staffHash = await hash("staff123", 12);
+  const promoterHash = await hash("promoter123", 12);
+  const supervisorHash = await hash("supervisor123", 12);
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@bentop.com" },
@@ -161,6 +163,57 @@ async function main() {
       },
     });
   }
+
+  const promoter = await prisma.user.upsert({
+    where: { email: "promoter@bentop.com" },
+    update: {
+      name: "Promoter Test User",
+      role: UserRole.PROMOTER,
+      department: "Promotions",
+      defaultLocationId: consignmentLoc.id,
+      passwordHash: promoterHash,
+      isActive: true,
+    },
+    create: {
+      email: "promoter@bentop.com",
+      name: "Promoter Test User",
+      phone: "+60111112222",
+      role: UserRole.PROMOTER,
+      department: "Promotions",
+      defaultLocationId: consignmentLoc.id,
+      passwordHash: promoterHash,
+      isActive: true,
+    },
+  });
+
+  const supervisor = await prisma.user.upsert({
+    where: { email: "supervisor@bentop.com" },
+    update: {
+      name: "Supervisor Test User",
+      role: UserRole.SUPERVISOR,
+      department: "Promotions",
+      passwordHash: supervisorHash,
+      isActive: true,
+      supervisedLocations: {
+        connect: { id: consignmentLoc.id },
+      },
+    },
+    create: {
+      email: "supervisor@bentop.com",
+      name: "Supervisor Test User",
+      phone: "+60111113333",
+      role: UserRole.SUPERVISOR,
+      department: "Promotions",
+      passwordHash: supervisorHash,
+      isActive: true,
+      supervisedLocations: {
+        connect: { id: consignmentLoc.id },
+      },
+    },
+  });
+
+  console.log(`Promoter seeded: ${promoter.email}`);
+  console.log(`Supervisor seeded: ${supervisor.email}`);
 
   const billionPartner = await prisma.$transaction(async (tx) => {
     const partner = await tx.consignmentPartner.upsert({
@@ -316,6 +369,128 @@ async function main() {
   }
 
   console.log(`Products seeded: ${productDefs.length} products, ${allVariants.length} variants`);
+
+  const promotionStartsAt = new Date();
+  const promotionEndsAt = new Date(promotionStartsAt);
+  promotionEndsAt.setMonth(promotionEndsAt.getMonth() + 1);
+
+  const promotion = await prisma.promotion.findFirst({
+    where: { name: "Consignment Bundle Promo" },
+  });
+  const activePromotion = promotion
+    ? await prisma.promotion.update({
+        where: { id: promotion.id },
+        data: {
+          ruleMode: PromotionRuleMode.MIX_AND_MATCH,
+          bundleQuantity: 2,
+          bundlePrice: 99,
+          startsAt: promotionStartsAt,
+          endsAt: promotionEndsAt,
+          isActive: true,
+        },
+      })
+    : await prisma.promotion.create({
+        data: {
+          name: "Consignment Bundle Promo",
+          ruleMode: PromotionRuleMode.MIX_AND_MATCH,
+          bundleQuantity: 2,
+          bundlePrice: 99,
+          startsAt: promotionStartsAt,
+          endsAt: promotionEndsAt,
+          isActive: true,
+        },
+      });
+
+  await prisma.promotionLocation.upsert({
+    where: {
+      promotionId_locationId: {
+        promotionId: activePromotion.id,
+        locationId: consignmentLoc.id,
+      },
+    },
+    update: {},
+    create: {
+      promotionId: activePromotion.id,
+      locationId: consignmentLoc.id,
+    },
+  });
+
+  if (allVariants.length > 0) {
+    await prisma.promotionVariant.upsert({
+      where: {
+        promotionId_productVariantId: {
+          promotionId: activePromotion.id,
+          productVariantId: allVariants[0].id,
+        },
+      },
+      update: {},
+      create: {
+        promotionId: activePromotion.id,
+        productVariantId: allVariants[0].id,
+      },
+    });
+  }
+
+  const leaderboardGroup = await prisma.leaderboardGroup.findFirst({
+    where: { name: "Consignment Monthly Leaderboard" },
+  });
+  const activeLeaderboardGroup = leaderboardGroup
+    ? await prisma.leaderboardGroup.update({
+        where: { id: leaderboardGroup.id },
+        data: { isActive: true },
+      })
+    : await prisma.leaderboardGroup.create({
+        data: {
+          name: "Consignment Monthly Leaderboard",
+          isActive: true,
+        },
+      });
+
+  await prisma.leaderboardGroupLocation.upsert({
+    where: {
+      groupId_locationId: {
+        groupId: activeLeaderboardGroup.id,
+        locationId: consignmentLoc.id,
+      },
+    },
+    update: {},
+    create: {
+      groupId: activeLeaderboardGroup.id,
+      locationId: consignmentLoc.id,
+    },
+  });
+
+  await prisma.leaderboardTier.deleteMany({
+    where: { groupId: activeLeaderboardGroup.id },
+  });
+
+  await prisma.leaderboardTier.createMany({
+    data: [
+      {
+        groupId: activeLeaderboardGroup.id,
+        name: "Bronze",
+        minSales: 0,
+        maxSales: 2999,
+        sortOrder: 1,
+      },
+      {
+        groupId: activeLeaderboardGroup.id,
+        name: "Silver",
+        minSales: 3000,
+        maxSales: 7999,
+        sortOrder: 2,
+      },
+      {
+        groupId: activeLeaderboardGroup.id,
+        name: "Gold",
+        minSales: 8000,
+        maxSales: null,
+        sortOrder: 3,
+      },
+    ],
+  });
+
+  console.log("Promotions and leaderboard seeded");
 
   // ─── Stock Levels ─────────────────────────────────────
   const locations = [warehouse, retailStore, consignmentLoc];

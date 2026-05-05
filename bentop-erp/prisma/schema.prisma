@@ -14,6 +14,8 @@ enum UserRole {
   MANAGER
   STAFF
   VIEWER
+  PROMOTER
+  SUPERVISOR
 }
 
 model User {
@@ -26,10 +28,17 @@ model User {
   avatarUrl     String?
   isActive      Boolean   @default(true)
   passwordHash  String
+  defaultLocationId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
 
+  defaultLocation Location? @relation("UserDefaultLocation", fields: [defaultLocationId], references: [id])
+  supervisedLocations Location[] @relation("LocationSupervisors")
+  temporaryLocations UserTemporaryLocation[]
+  registeredCustomers Customer[] @relation("CustomerRegisteredBy")
+  promoterReturns PromoterReturn[]
+  notifications Notification[]
   auditLogs          AuditLog[]
   stockMovements     StockMovement[]  @relation("PerformedBy")
   approvedMovements  StockMovement[]  @relation("ApprovedBy")
@@ -107,6 +116,7 @@ model Product {
   category Category         @relation(fields: [categoryId], references: [id])
   variants ProductVariant[]
   consignmentOverrides ConsignmentCommissionOverride[]
+  promotions PromotionProduct[]
 
   @@index([categoryId])
   @@map("products")
@@ -135,6 +145,8 @@ model ProductVariant {
   transferItems StockTransferItem[]
   consignmentItems ConsignmentShipmentItem[]
   consignmentOverrides ConsignmentCommissionOverride[]
+  promotions PromotionVariant[]
+  promoterReturns PromoterReturn[]
 
   @@index([productId])
   @@map("product_variants")
@@ -192,6 +204,13 @@ model Location {
   consignmentShipmentsFrom ConsignmentShipment[] @relation("ConsignmentFrom")
   consignmentShipmentsTo   ConsignmentShipment[] @relation("ConsignmentTo")
   consignmentPartner ConsignmentPartner?
+  defaultUsers User[] @relation("UserDefaultLocation")
+  supervisors User[] @relation("LocationSupervisors")
+  temporaryUsers UserTemporaryLocation[]
+  customersRegisteredHere Customer[] @relation("CustomerRegisteredAtLocation")
+  promotions PromotionLocation[]
+  promoterReturns PromoterReturn[]
+  leaderboardLocations LeaderboardGroupLocation[]
 
   @@map("locations")
 }
@@ -356,10 +375,14 @@ model Customer {
   addresses       Json         @default("[]")
   notes           String?
   isActive        Boolean      @default(true)
+  registeredById String?
+  registeredLocationId String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
   orders Order[]
+  registeredBy User? @relation("CustomerRegisteredBy", fields: [registeredById], references: [id])
+  registeredLocation Location? @relation("CustomerRegisteredAtLocation", fields: [registeredLocationId], references: [id])
 
   @@map("customers")
 }
@@ -450,6 +473,7 @@ model Order {
   createdBy     User           @relation(fields: [createdById], references: [id])
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
+  promoterReturns PromoterReturn[]
 
   @@index([customerId])
   @@index([salesChannelId])
@@ -473,6 +497,7 @@ model OrderItem {
   order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
   batch          Batch?         @relation(fields: [batchId], references: [id])
+  promoterReturns PromoterReturn[]
 
   @@index([orderId])
   @@map("order_items")
@@ -495,6 +520,176 @@ model OrderStatusHistory {
 }
 
 // ─── Consignment ────────────────────────────────────────────────
+
+model UserTemporaryLocation {
+  id String @id @default(cuid())
+  userId String
+  locationId String
+  startsAt DateTime
+  endsAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startsAt, endsAt])
+  @@index([locationId])
+  @@map("user_temporary_locations")
+}
+
+enum PromotionRuleMode {
+  SAME_SKU
+  MIX_AND_MATCH
+}
+
+enum PromotionType {
+  BUNDLE_PRICE
+}
+
+model Promotion {
+  id String @id @default(cuid())
+  name String
+  promotionType PromotionType @default(BUNDLE_PRICE)
+  ruleMode PromotionRuleMode
+  bundleQuantity Int
+  bundlePrice Decimal @db.Decimal(12, 2)
+  startsAt DateTime
+  endsAt DateTime
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations PromotionLocation[]
+  products PromotionProduct[]
+  variants PromotionVariant[]
+
+  @@index([startsAt, endsAt, isActive])
+  @@map("promotions")
+}
+
+model PromotionLocation {
+  id String @id @default(cuid())
+  promotionId String
+  locationId String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, locationId])
+  @@map("promotion_locations")
+}
+
+model PromotionProduct {
+  id String @id @default(cuid())
+  promotionId String
+  productId String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, productId])
+  @@map("promotion_products")
+}
+
+model PromotionVariant {
+  id String @id @default(cuid())
+  promotionId String
+  productVariantId String
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, productVariantId])
+  @@map("promotion_variants")
+}
+
+model PromoterReturn {
+  id String @id @default(cuid())
+  orderId String
+  orderItemId String
+  productVariantId String
+  locationId String
+  promoterId String
+  quantity Int
+  amount Decimal @db.Decimal(12, 2)
+  reason String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  promoter User @relation(fields: [promoterId], references: [id])
+
+  @@index([orderId])
+  @@index([promoterId, createdAt])
+  @@index([locationId])
+  @@map("promoter_returns")
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ACTIONED
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  title String
+  body String
+  entityType String
+  entityId String
+  status NotificationStatus @default(UNREAD)
+  escalatesAt DateTime?
+  createdAt DateTime @default(now())
+  readAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([escalatesAt])
+  @@map("notifications")
+}
+
+model LeaderboardGroup {
+  id String @id @default(cuid())
+  name String
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations LeaderboardGroupLocation[]
+  tiers LeaderboardTier[]
+
+  @@map("leaderboard_groups")
+}
+
+model LeaderboardGroupLocation {
+  id String @id @default(cuid())
+  groupId String
+  locationId String
+
+  group LeaderboardGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, locationId])
+  @@map("leaderboard_group_locations")
+}
+
+model LeaderboardTier {
+  id String @id @default(cuid())
+  groupId String
+  name String
+  minSales Decimal @db.Decimal(12, 2)
+  maxSales Decimal? @db.Decimal(12, 2)
+  sortOrder Int @default(0)
+
+  group LeaderboardGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, sortOrder])
+  @@map("leaderboard_tiers")
+}
 
 enum ConsignmentStatus {
   DRAFT
