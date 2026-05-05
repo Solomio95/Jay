@@ -334,10 +334,10 @@ async function main() {
 
   for (const pDef of productDefs) {
     const colors = colorSets[pDef.colorIdx];
-    const product = await prisma.product.create({
-      data: {
+    const slug = pDef.name.toLowerCase().replace(/\s+/g, "-");
+    const productData = {
         name: pDef.name,
-        slug: pDef.name.toLowerCase().replace(/\s+/g, "-"),
+        slug,
         skuPrefix: pDef.prefix,
         categoryId: categories[pDef.catIdx].id,
         baseCostMyr: pDef.cost,
@@ -346,20 +346,29 @@ async function main() {
         material: pDef.catIdx <= 2 ? "100% Cotton" : "Mixed",
         weightKg: 0.3,
         description: `Premium ${pDef.name} from Bentop Collection.`,
-      },
+    };
+    const product = await prisma.product.upsert({
+      where: { slug },
+      update: productData,
+      create: productData,
     });
 
     for (const color of colors) {
       const colorCode = color.name.substring(0, 3).toUpperCase();
       for (const size of sizes) {
         const sku = `${pDef.prefix}-${colorCode}-${size}`;
-        const variant = await prisma.productVariant.create({
-          data: {
+        const variantData = {
             productId: product.id,
             sku,
             size,
             color: color.name,
             colorHex: color.hex,
+        };
+        const variant = await prisma.productVariant.upsert({
+          where: { sku },
+          update: variantData,
+          create: {
+            ...variantData,
             barcode: `899${Math.floor(Math.random() * 9000000000 + 1000000000)}`,
           },
         });
@@ -496,38 +505,92 @@ async function main() {
   const locations = [warehouse, retailStore, consignmentLoc];
   for (const variant of allVariants) {
     // Warehouse always has stock
-    await prisma.stockLevel.create({
-      data: {
+    const warehouseStock = await prisma.stockLevel.findFirst({
+      where: {
         productVariantId: variant.id,
         locationId: warehouse.id,
-        quantityOnHand: Math.floor(Math.random() * 80) + 5,
-        reorderPoint: 20,
-        reorderQuantity: 50,
+        batchId: null,
       },
     });
-    // 60% chance of retail store stock
-    if (Math.random() > 0.4) {
+    if (warehouseStock) {
+      await prisma.stockLevel.update({
+        where: { id: warehouseStock.id },
+        data: {
+          quantityOnHand: Math.floor(Math.random() * 80) + 5,
+          reorderPoint: 20,
+          reorderQuantity: 50,
+        },
+      });
+    } else {
       await prisma.stockLevel.create({
         data: {
           productVariantId: variant.id,
-          locationId: retailStore.id,
-          quantityOnHand: Math.floor(Math.random() * 15) + 1,
-          reorderPoint: 5,
-          reorderQuantity: 15,
+          locationId: warehouse.id,
+          quantityOnHand: Math.floor(Math.random() * 80) + 5,
+          reorderPoint: 20,
+          reorderQuantity: 50,
         },
       });
     }
-    // 30% chance of consignment stock
-    if (Math.random() > 0.7) {
-      await prisma.stockLevel.create({
-        data: {
+    // 60% chance of retail store stock
+    if (Math.random() > 0.4) {
+      const retailStock = await prisma.stockLevel.findFirst({
+        where: {
           productVariantId: variant.id,
-          locationId: consignmentLoc.id,
-          quantityOnHand: Math.floor(Math.random() * 10) + 1,
-          reorderPoint: 3,
-          reorderQuantity: 10,
+          locationId: retailStore.id,
+          batchId: null,
         },
       });
+      if (retailStock) {
+        await prisma.stockLevel.update({
+          where: { id: retailStock.id },
+          data: {
+            quantityOnHand: Math.floor(Math.random() * 15) + 1,
+            reorderPoint: 5,
+            reorderQuantity: 15,
+          },
+        });
+      } else {
+        await prisma.stockLevel.create({
+          data: {
+            productVariantId: variant.id,
+            locationId: retailStore.id,
+            quantityOnHand: Math.floor(Math.random() * 15) + 1,
+            reorderPoint: 5,
+            reorderQuantity: 15,
+          },
+        });
+      }
+    }
+    // 30% chance of consignment stock
+    if (Math.random() > 0.7) {
+      const consignmentStock = await prisma.stockLevel.findFirst({
+        where: {
+          productVariantId: variant.id,
+          locationId: consignmentLoc.id,
+          batchId: null,
+        },
+      });
+      if (consignmentStock) {
+        await prisma.stockLevel.update({
+          where: { id: consignmentStock.id },
+          data: {
+            quantityOnHand: Math.floor(Math.random() * 10) + 1,
+            reorderPoint: 3,
+            reorderQuantity: 10,
+          },
+        });
+      } else {
+        await prisma.stockLevel.create({
+          data: {
+            productVariantId: variant.id,
+            locationId: consignmentLoc.id,
+            quantityOnHand: Math.floor(Math.random() * 10) + 1,
+            reorderPoint: 3,
+            reorderQuantity: 10,
+          },
+        });
+      }
     }
   }
 
@@ -676,8 +739,10 @@ async function main() {
     const discountAmount = Math.random() > 0.7 ? +(subtotal * 0.1).toFixed(2) : 0;
     const totalAmount = +(subtotal - discountAmount).toFixed(2);
 
-    await prisma.order.create({
-      data: {
+    await prisma.order.upsert({
+      where: { orderNumber: `BT-SO-${dateStr}-${seq}` },
+      update: {},
+      create: {
         orderNumber: `BT-SO-${dateStr}-${seq}`,
         customerId: customer.id,
         salesChannelId: channel.id,
