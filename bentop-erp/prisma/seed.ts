@@ -150,6 +150,7 @@ async function main() {
         address: "No. 22, Jalan SS2/75, 47300 Petaling Jaya, Selangor",
         contactPerson: "David Wong",
         contactPhone: "+60145678901",
+        isActive: true,
       },
     });
   } else {
