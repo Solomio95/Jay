@@ -44,6 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          defaultLocationId: user.defaultLocationId,
         };
       },
     }),
@@ -53,6 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id as string;
         token.role = (user as { role: UserRole }).role;
+        token.defaultLocationId = (user as { defaultLocationId?: string | null }).defaultLocationId;
       }
       return token;
     },
@@ -60,6 +62,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         (session.user as unknown as Record<string, unknown>).id = token.id as string;
         (session.user as unknown as Record<string, unknown>).role = token.role as string;
+        (session.user as unknown as Record<string, unknown>).defaultLocationId =
+          token.defaultLocationId as string | null | undefined;
       }
       return session;
     },
