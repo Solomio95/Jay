@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildPromoterStockDeductionPlan } from "./sales";
+import {
+  buildPromoterSalesHistoryWhere,
+  buildPromoterStockDeductionPlan,
+} from "./sales";
 
 describe("buildPromoterStockDeductionPlan", () => {
   it("uses aggregate stock when no batch stock exists", () => {
@@ -33,5 +36,54 @@ describe("buildPromoterStockDeductionPlan", () => {
         { batchId: null, quantity: 2 },
       ],
     });
+  });
+});
+
+describe("buildPromoterSalesHistoryWhere", () => {
+  it("limits sales history to the promoter's own submitted sales", () => {
+    assert.deepEqual(buildPromoterSalesHistoryWhere({ userId: "promoter-1" }), {
+      createdById: "promoter-1",
+      internalNotes: { contains: "Promoter sale finalized at submission" },
+    });
+  });
+
+  it("can filter the promoter's own sales by search text and date range", () => {
+    assert.deepEqual(
+      buildPromoterSalesHistoryWhere({
+        userId: "promoter-1",
+        search: "BT-SO-123",
+        dateFrom: "2026-05-01",
+        dateTo: "2026-05-05",
+      }),
+      {
+        createdById: "promoter-1",
+        internalNotes: { contains: "Promoter sale finalized at submission" },
+        createdAt: {
+          gte: new Date("2026-05-01T00:00:00.000Z"),
+          lte: new Date("2026-05-05T23:59:59.999Z"),
+        },
+        OR: [
+          { orderNumber: { contains: "BT-SO-123", mode: "insensitive" } },
+          { customer: { name: { contains: "BT-SO-123", mode: "insensitive" } } },
+          { location: { name: { contains: "BT-SO-123", mode: "insensitive" } } },
+          {
+            items: {
+              some: {
+                productVariant: {
+                  OR: [
+                    { sku: { contains: "BT-SO-123", mode: "insensitive" } },
+                    {
+                      product: {
+                        name: { contains: "BT-SO-123", mode: "insensitive" },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    );
   });
 });

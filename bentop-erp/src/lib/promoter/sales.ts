@@ -180,6 +180,128 @@ export async function createPromoterSale(input: {
   });
 }
 
+export async function getPromoterSalesHistory(input: {
+  userId: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}) {
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+  });
+
+  if (!user || user.role !== "PROMOTER") {
+    throw new Error("PROMOTER_ACCESS_REQUIRED");
+  }
+
+  const limit = Number.isFinite(input.limit) ? input.limit : 50;
+
+  const orders = await prisma.order.findMany({
+    where: buildPromoterSalesHistoryWhere(input),
+    include: {
+      customer: { select: { id: true, name: true, phone: true } },
+      location: { select: { id: true, name: true } },
+      items: {
+        include: {
+          productVariant: {
+            select: {
+              id: true,
+              sku: true,
+              color: true,
+              size: true,
+              product: { select: { id: true, name: true, skuPrefix: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(Math.max(limit ?? 50, 1), 100),
+  });
+
+  return orders.map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt.toISOString(),
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+    location: order.location,
+    customer: order.customer,
+    subtotal: Number(order.subtotal),
+    totalAmount: Number(order.totalAmount),
+    itemCount: order.items.length,
+    quantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    items: order.items.map((item) => ({
+      id: item.id,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      totalPrice: Number(item.totalPrice),
+      notes: item.notes,
+      productVariant: item.productVariant,
+    })),
+  }));
+}
+
+export function buildPromoterSalesHistoryWhere(input: {
+  userId: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Prisma.OrderWhereInput {
+  const where: Prisma.OrderWhereInput = {
+    createdById: input.userId,
+    internalNotes: { contains: "Promoter sale finalized at submission" },
+  };
+
+  const createdAt = buildDateRange(input.dateFrom, input.dateTo);
+  if (createdAt) {
+    where.createdAt = createdAt;
+  }
+
+  const search = input.search?.trim();
+  if (search) {
+    where.OR = [
+      { orderNumber: { contains: search, mode: "insensitive" } },
+      { customer: { name: { contains: search, mode: "insensitive" } } },
+      { location: { name: { contains: search, mode: "insensitive" } } },
+      {
+        items: {
+          some: {
+            productVariant: {
+              OR: [
+                { sku: { contains: search, mode: "insensitive" } },
+                {
+                  product: {
+                    name: { contains: search, mode: "insensitive" },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ];
+  }
+
+  return where;
+}
+
+function buildDateRange(dateFrom?: string, dateTo?: string) {
+  const range: { gte?: Date; lte?: Date } = {};
+
+  if (dateFrom) {
+    range.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+  }
+
+  if (dateTo) {
+    range.lte = new Date(`${dateTo}T23:59:59.999Z`);
+  }
+
+  return range.gte || range.lte ? range : null;
+}
+
 async function assertSufficientStock(input: {
   locationId: string;
   items: PromoterSaleInput["items"];

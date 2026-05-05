@@ -13,6 +13,7 @@ import {
   RotateCcw,
   ArrowLeftRight,
   Trophy,
+  History,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -82,6 +83,11 @@ const navItems: NavItem[] = [
 
 const promoterNavItems: NavItem[] = [
   {
+    title: "Sales History",
+    href: "/promoter/sales",
+    icon: <History className="h-5 w-5" />,
+  },
+  {
     title: "New Sale",
     href: "/promoter/sales/new",
     icon: <ShoppingCart className="h-5 w-5" />,
@@ -121,6 +127,7 @@ export function Sidebar({
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
+    if (href === "/promoter/sales") return pathname === href;
     return pathname.startsWith(href);
   };
 

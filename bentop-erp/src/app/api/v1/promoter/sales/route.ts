@@ -1,7 +1,39 @@
 import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
-import { createPromoterSale } from "@/lib/promoter/sales";
+import { createPromoterSale, getPromoterSalesHistory } from "@/lib/promoter/sales";
 import { promoterSaleSchema } from "@/lib/validators/promoter";
+
+export async function GET(request: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return Response.json(
+        { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        { status: 401 },
+      );
+    }
+
+    const url = new URL(request.url);
+    const history = await getPromoterSalesHistory({
+      userId: session.user.id,
+      search: url.searchParams.get("search") ?? undefined,
+      dateFrom: url.searchParams.get("dateFrom") ?? undefined,
+      dateTo: url.searchParams.get("dateTo") ?? undefined,
+      limit: Number(url.searchParams.get("limit") ?? 50),
+    });
+
+    return Response.json({ data: history });
+  } catch (error) {
+    if (error instanceof Error && error.message === "PROMOTER_ACCESS_REQUIRED") {
+      return Response.json(
+        { error: { code: "FORBIDDEN", message: "Promoter access required" } },
+        { status: 403 },
+      );
+    }
+
+    return handleApiError(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {
