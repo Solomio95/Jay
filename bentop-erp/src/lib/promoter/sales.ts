@@ -246,7 +246,6 @@ async function deductStockFifo(input: {
   productVariantId: string;
   quantity: number;
 }) {
-  let remaining = input.quantity;
   const sourceRows = await input.tx.stockLevel.findMany({
     where: {
       productVariantId: input.productVariantId,
@@ -257,37 +256,6 @@ async function deductStockFifo(input: {
     include: { batch: true },
     orderBy: { batch: { productionDate: "asc" } },
   });
-
-  for (const row of sourceRows) {
-    if (remaining <= 0) break;
-
-    const take = Math.min(remaining, row.quantityOnHand);
-    await input.tx.stockLevel.update({
-      where: { id: row.id },
-      data: { quantityOnHand: { decrement: take } },
-    });
-    await input.tx.stockMovement.create({
-      data: {
-        productVariantId: input.productVariantId,
-        batchId: row.batchId,
-        fromLocationId: input.locationId,
-        movementType: "OUTBOUND",
-        quantity: take,
-        referenceNumber: input.orderNumber,
-        reason: "PROMOTER_SALE",
-        performedById: input.userId,
-      },
-    });
-
-    remaining -= take;
-  }
-
-  if (remaining > 0) {
-    throw new Error(
-      `INSUFFICIENT_STOCK:Not enough on-hand stock to fulfill ${input.productVariantId}`,
-    );
-  }
-
   const aggregate = await input.tx.stockLevel.findFirst({
     where: {
       productVariantId: input.productVariantId,
@@ -296,12 +264,88 @@ async function deductStockFifo(input: {
     },
   });
 
-  if (aggregate) {
+  const plan = buildPromoterStockDeductionPlan({
+    quantity: input.quantity,
+    batchRows: sourceRows.map((row) => ({
+      id: row.id,
+      batchId: row.batchId,
+      quantityOnHand: row.quantityOnHand,
+    })),
+    aggregateRow: aggregate
+      ? { id: aggregate.id, quantityOnHand: aggregate.quantityOnHand }
+      : null,
+  });
+
+  for (const deduction of plan.batchDeductions) {
     await input.tx.stockLevel.update({
-      where: { id: aggregate.id },
-      data: { quantityOnHand: { decrement: input.quantity } },
+      where: { id: deduction.id },
+      data: { quantityOnHand: { decrement: deduction.quantity } },
     });
   }
+
+  for (const movement of plan.movements) {
+    await input.tx.stockMovement.create({
+      data: {
+        productVariantId: input.productVariantId,
+        batchId: movement.batchId,
+        fromLocationId: input.locationId,
+        movementType: "OUTBOUND",
+        quantity: movement.quantity,
+        referenceNumber: input.orderNumber,
+        reason: "PROMOTER_SALE",
+        performedById: input.userId,
+      },
+    });
+  }
+
+  if (plan.aggregateDeduction) {
+    await input.tx.stockLevel.update({
+      where: { id: plan.aggregateDeduction.id },
+      data: { quantityOnHand: { decrement: plan.aggregateDeduction.quantity } },
+    });
+  }
+}
+
+export function buildPromoterStockDeductionPlan(input: {
+  quantity: number;
+  batchRows: Array<{ id: string; batchId: string | null; quantityOnHand: number }>;
+  aggregateRow: { id: string; quantityOnHand: number } | null;
+}) {
+  let remaining = input.quantity;
+  const batchDeductions: Array<{ id: string; quantity: number }> = [];
+  const movements: Array<{ batchId: string | null; quantity: number }> = [];
+
+  for (const row of input.batchRows) {
+    if (remaining <= 0) break;
+
+    const quantity = Math.min(remaining, row.quantityOnHand);
+    if (quantity <= 0) continue;
+
+    batchDeductions.push({ id: row.id, quantity });
+    movements.push({ batchId: row.batchId, quantity });
+    remaining -= quantity;
+  }
+
+  if (remaining > 0) {
+    const aggregateAvailable = input.aggregateRow?.quantityOnHand ?? 0;
+    const fallbackAvailable =
+      aggregateAvailable - (input.quantity - remaining);
+
+    if (fallbackAvailable < remaining) {
+      throw new Error("INSUFFICIENT_STOCK:Not enough on-hand stock to fulfill item");
+    }
+
+    movements.push({ batchId: null, quantity: remaining });
+    remaining = 0;
+  }
+
+  return {
+    batchDeductions,
+    aggregateDeduction: input.aggregateRow
+      ? { id: input.aggregateRow.id, quantity: input.quantity }
+      : null,
+    movements,
+  };
 }
 
 async function getActivePromotions(locationId: string): Promise<PromotionCandidate[]> {
