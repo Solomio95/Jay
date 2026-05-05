@@ -8,9 +8,6 @@ const promoterCustomerSchema = z.object({
 export const promoterSaleItemSchema = z.object({
   productVariantId: z.string().min(1),
   quantity: z.number().int().positive("Quantity must be positive"),
-  unitPrice: z.number().nonnegative("Unit price cannot be negative"),
-  discountAmount: z.number().nonnegative().default(0),
-  promotionId: z.string().optional().nullable(),
 });
 
 export const promoterSaleSchema = z.object({

@@ -4,9 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, ScanLine, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  calculatePromoterSaleLinePrices,
+  type PromotionCandidate,
+} from "@/lib/promoter/promotions";
 
 type LocationOption = { id: string; name: string; isDefault: boolean };
 type StockRow = {
+  productId: string;
   variantId: string;
   sku: string;
   barcode: string | null;
@@ -14,10 +19,11 @@ type StockRow = {
   parentSku: string;
   color: string;
   size: string;
+  sellingPriceMyr: number;
   available: number;
   isCurrentLocation: boolean;
 };
-type CartItem = StockRow & { quantity: number; unitPrice: number };
+type CartItem = StockRow & { quantity: number };
 
 export default function PromoterNewSalePage() {
   const [locations, setLocations] = useState<LocationOption[]>([]);
@@ -25,6 +31,7 @@ export default function PromoterNewSalePage() {
   const [search, setSearch] = useState("");
   const [stockRefreshKey, setStockRefreshKey] = useState(0);
   const [stock, setStock] = useState<StockRow[]>([]);
+  const [promotions, setPromotions] = useState<PromotionCandidate[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerMode, setCustomerMode] = useState<"walk-in" | "registered">("walk-in");
   const [customerName, setCustomerName] = useState("");
@@ -48,13 +55,33 @@ export default function PromoterNewSalePage() {
     if (search) params.set("search", search);
     fetch(`/api/v1/promoter/stock?${params.toString()}`)
       .then((res) => res.json())
-      .then((json) => setStock(json.data?.currentLocationRows ?? []))
+      .then((json) => {
+        setStock(json.data?.currentLocationRows ?? []);
+        setPromotions(json.data?.promotions ?? []);
+      })
       .catch(() => setMessage("Unable to load stock."));
   }, [locationId, search, stockRefreshKey]);
 
+  const calculatedPrices = useMemo(
+    () =>
+      calculatePromoterSaleLinePrices({
+        items: cart.map((item) => ({
+          productVariantId: item.variantId,
+          productId: item.productId,
+          quantity: item.quantity,
+          sellingPriceMyr: item.sellingPriceMyr,
+        })),
+        promotions,
+      }),
+    [cart, promotions],
+  );
+  const priceByVariant = useMemo(
+    () => new Map(calculatedPrices.map((item) => [item.productVariantId, item])),
+    [calculatedPrices],
+  );
   const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
-    [cart],
+    () => calculatedPrices.reduce((sum, item) => sum + item.totalPrice, 0),
+    [calculatedPrices],
   );
   const pendingQuantityByVariant = useMemo(() => {
     const quantities = new Map<string, number>();
@@ -86,7 +113,7 @@ export default function PromoterNewSalePage() {
             : item,
         );
       }
-      return [...current, { ...row, quantity: 1, unitPrice: 0 }];
+      return [...current, { ...row, quantity: 1 }];
     });
   }
 
@@ -104,7 +131,6 @@ export default function PromoterNewSalePage() {
         items: cart.map((item) => ({
           productVariantId: item.variantId,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
         })),
       }),
     });
@@ -161,6 +187,7 @@ export default function PromoterNewSalePage() {
                 <tr>
                   <th className="p-2">SKU</th>
                   <th className="p-2">Item</th>
+                  <th className="p-2 text-right">Price</th>
                   <th className="p-2 text-right">Stock</th>
                   <th className="p-2 text-right">Add</th>
                 </tr>
@@ -172,6 +199,7 @@ export default function PromoterNewSalePage() {
                     <td className="p-2 text-muted-foreground">
                       {row.productName} / {row.color} / {row.size}
                     </td>
+                    <td className="p-2 text-right">RM {row.sellingPriceMyr.toFixed(2)}</td>
                     <td className="p-2 text-right">
                       <div>{row.displayAvailable}</div>
                       {row.pendingQuantity > 0 && (
@@ -225,10 +253,12 @@ export default function PromoterNewSalePage() {
           )}
           <div className="space-y-2">
             {cart.map((item) => (
-              <div key={item.variantId} className="grid grid-cols-[1fr_64px_88px_36px] gap-2">
+              <div key={item.variantId} className="grid grid-cols-[1fr_64px_92px_36px] gap-2">
                 <div className="min-w-0 text-sm">
                   <div className="truncate font-medium">{item.sku}</div>
-                  <div className="truncate text-xs text-muted-foreground">{item.productName}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {item.productName}
+                  </div>
                 </div>
                 <Input
                   type="number"
@@ -251,21 +281,12 @@ export default function PromoterNewSalePage() {
                     )
                   }
                 />
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={item.unitPrice}
-                  onChange={(event) =>
-                    setCart((current) =>
-                      current.map((row) =>
-                        row.variantId === item.variantId
-                          ? { ...row, unitPrice: Number(event.target.value) }
-                          : row,
-                      ),
-                    )
-                  }
-                />
+                <div className="rounded-md border bg-muted/40 px-2 py-1.5 text-right text-sm">
+                  <div>RM {(priceByVariant.get(item.variantId)?.unitPrice ?? item.sellingPriceMyr).toFixed(2)}</div>
+                  {priceByVariant.get(item.variantId)?.promotionId && (
+                    <div className="text-[11px] text-emerald-700">Promo</div>
+                  )}
+                </div>
                 <Button
                   type="button"
                   size="icon"

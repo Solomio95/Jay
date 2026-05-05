@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { getAllowedPromoterLocationIds } from "@/lib/promoter/access";
 import { handleApiError } from "@/lib/api-error";
+import type { PromotionCandidate } from "@/lib/promoter/promotions";
 
 type StockRow = {
   productId: string;
@@ -13,6 +14,7 @@ type StockRow = {
   barcode: string | null;
   color: string;
   size: string;
+  sellingPriceMyr: number;
   locationId: string;
   locationName: string;
   locationType: string;
@@ -72,7 +74,8 @@ export async function GET(request: Request) {
         }
       : undefined;
 
-    const levels = await prisma.stockLevel.findMany({
+    const [levels, promotions] = await Promise.all([
+      prisma.stockLevel.findMany({
       where: {
         batchId: null,
         location: { isActive: true },
@@ -95,7 +98,21 @@ export async function GET(request: Request) {
         { location: { name: "asc" } },
       ],
       take: 1000,
-    });
+      }),
+      prisma.promotion.findMany({
+        where: {
+          isActive: true,
+          startsAt: { lte: new Date() },
+          endsAt: { gte: new Date() },
+          locations: { some: { locationId: requestedLocationId } },
+        },
+        include: {
+          products: { select: { productId: true } },
+          variants: { select: { productVariantId: true } },
+        },
+        orderBy: { startsAt: "desc" },
+      }),
+    ]);
 
     const rows: StockRow[] = levels.map((level) => ({
       productId: level.productVariant.product.id,
@@ -106,6 +123,7 @@ export async function GET(request: Request) {
       barcode: level.productVariant.barcode,
       color: level.productVariant.color,
       size: level.productVariant.size,
+      sellingPriceMyr: Number(level.productVariant.sellingPriceMyr),
       locationId: level.locationId,
       locationName: level.location.name,
       locationType: level.location.type,
@@ -114,6 +132,14 @@ export async function GET(request: Request) {
       quantityReserved: level.quantityReserved,
       available: Math.max(0, level.quantityOnHand - level.quantityReserved),
     }));
+    const promotionRows: PromotionCandidate[] = promotions.map((promotion) => ({
+      id: promotion.id,
+      ruleMode: promotion.ruleMode,
+      bundleQuantity: promotion.bundleQuantity,
+      bundlePrice: Number(promotion.bundlePrice),
+      productIds: promotion.products.map((product) => product.productId),
+      productVariantIds: promotion.variants.map((variant) => variant.productVariantId),
+    }));
 
     return Response.json({
       data: {
@@ -121,6 +147,7 @@ export async function GET(request: Request) {
         currentLocationRows: rows.filter((row) => row.isCurrentLocation),
         otherLocationRows: rows.filter((row) => !row.isCurrentLocation),
         products: groupRowsByProduct(rows),
+        promotions: promotionRows,
       },
     });
   } catch (error) {

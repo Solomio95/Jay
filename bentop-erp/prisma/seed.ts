@@ -440,6 +440,7 @@ async function main() {
             size,
             color: color.name,
             colorHex: color.hex,
+            sellingPriceMyr: getSeedSellingPrice(pDef.cost, size),
         };
         const variant = await prisma.productVariant.upsert({
           where: { sku },
@@ -798,6 +799,11 @@ async function main() {
 
   console.log("Exchange rates seeded");
   console.log("Seeding complete!");
+}
+
+function getSeedSellingPrice(costMyr: number, size: string) {
+  const sizePremium = size === "XL" ? 5 : 0;
+  return +(costMyr * 2.6 + sizePremium).toFixed(2);
 }
 
 main()

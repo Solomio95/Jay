@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getAllowedPromoterLocationIds, assertPromoterLocationAllowed } from "./access";
 import { generateOrderNumber } from "@/lib/utils";
 import type { PromoterSaleInput } from "@/lib/validators/promoter";
+import { calculatePromoterSaleLinePrices, type PromotionCandidate } from "./promotions";
 
 export async function createPromoterSale(input: {
   userId: string;
@@ -52,13 +53,33 @@ export async function createPromoterSale(input: {
     items: input.sale.items,
   });
 
+  const activePromotions = await getActivePromotions(input.sale.locationId);
+  const calculatedPrices = calculatePromoterSaleLinePrices({
+    items: input.sale.items.map((item) => {
+      const variant = variantById.get(item.productVariantId);
+      if (!variant) throw new Error("PROMOTER_VARIANT_NOT_FOUND");
+
+      return {
+        productVariantId: item.productVariantId,
+        productId: variant.productId,
+        quantity: item.quantity,
+        sellingPriceMyr: Number(variant.sellingPriceMyr),
+      };
+    }),
+    promotions: activePromotions,
+  });
+  const calculatedPriceByVariantId = new Map(
+    calculatedPrices.map((item) => [item.productVariantId, item]),
+  );
+
   const preparedItems = input.sale.items.map((item) => {
     const variant = variantById.get(item.productVariantId);
     if (!variant) throw new Error("PROMOTER_VARIANT_NOT_FOUND");
+    const calculatedPrice = calculatedPriceByVariantId.get(item.productVariantId);
+    if (!calculatedPrice) throw new Error("PROMOTER_PRICE_NOT_FOUND");
 
-    const gross = item.unitPrice * item.quantity;
-    const totalPrice = roundMoney(Math.max(0, gross - item.discountAmount));
-    const effectiveUnitPrice = roundMoney(totalPrice / item.quantity);
+    const totalPrice = calculatedPrice.totalPrice;
+    const effectiveUnitPrice = calculatedPrice.unitPrice;
     const cost = Number(variant.product.baseCostMyr) + Number(variant.additionalCost);
 
     return {
@@ -66,6 +87,7 @@ export async function createPromoterSale(input: {
       effectiveUnitPrice,
       totalPrice,
       cost,
+      promotionId: calculatedPrice.promotionId,
     };
   });
 
@@ -107,9 +129,7 @@ export async function createPromoterSale(input: {
             discountAmount: new Prisma.Decimal(0),
             totalPrice: new Prisma.Decimal(item.totalPrice),
             costAtTimeOfSale: new Prisma.Decimal(item.cost),
-            notes: item.input.promotionId
-              ? `Promotion applied: ${item.input.promotionId}`
-              : null,
+            notes: item.promotionId ? `Promotion applied: ${item.promotionId}` : null,
           })),
         },
       },
@@ -282,6 +302,32 @@ async function deductStockFifo(input: {
       data: { quantityOnHand: { decrement: input.quantity } },
     });
   }
+}
+
+async function getActivePromotions(locationId: string): Promise<PromotionCandidate[]> {
+  const now = new Date();
+  const promotions = await prisma.promotion.findMany({
+    where: {
+      isActive: true,
+      startsAt: { lte: now },
+      endsAt: { gte: now },
+      locations: { some: { locationId } },
+    },
+    include: {
+      products: { select: { productId: true } },
+      variants: { select: { productVariantId: true } },
+    },
+    orderBy: { startsAt: "desc" },
+  });
+
+  return promotions.map((promotion) => ({
+    id: promotion.id,
+    ruleMode: promotion.ruleMode,
+    bundleQuantity: promotion.bundleQuantity,
+    bundlePrice: Number(promotion.bundlePrice),
+    productIds: promotion.products.map((product) => product.productId),
+    productVariantIds: promotion.variants.map((variant) => variant.productVariantId),
+  }));
 }
 
 function roundMoney(value: number) {

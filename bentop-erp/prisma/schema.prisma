@@ -131,6 +131,7 @@ model ProductVariant {
   colorHex        String?
   barcode         String?  @unique
   additionalCost  Decimal  @default(0) @db.Decimal(10, 2)
+  sellingPriceMyr Decimal  @default(0) @db.Decimal(12, 2)
   weightOverrideKg Decimal? @db.Decimal(6, 3)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())

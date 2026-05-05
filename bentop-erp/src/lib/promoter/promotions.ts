@@ -7,6 +7,22 @@ type PromotionItem = {
   normalUnitPrice: number;
 };
 
+type PromoterSaleItem = {
+  productVariantId: string;
+  productId: string;
+  quantity: number;
+  sellingPriceMyr: number;
+};
+
+export type PromotionCandidate = {
+  id: string;
+  ruleMode: PromotionRuleMode;
+  bundleQuantity: number;
+  bundlePrice: number;
+  productIds: string[];
+  productVariantIds: string[];
+};
+
 type PromotionUnitPrice = {
   productVariantId: string;
   productId: string;
@@ -34,6 +50,89 @@ export function calculatePromotionUnitPrices(input: {
 
   applyBundlePrice(units, input.bundleQuantity, bundleUnitPrice);
   return units;
+}
+
+export function calculatePromoterSaleLinePrices(input: {
+  items: PromoterSaleItem[];
+  promotions: PromotionCandidate[];
+}) {
+  const baseLines = input.items.map((item) => ({
+    productVariantId: item.productVariantId,
+    unitPrice: roundMoney(item.sellingPriceMyr),
+    totalPrice: roundMoney(item.sellingPriceMyr * item.quantity),
+    promotionId: null as string | null,
+  }));
+
+  const promotion = input.promotions.find((candidate) =>
+    hasEligibleBundle(input.items, candidate),
+  );
+
+  if (!promotion) {
+    return baseLines;
+  }
+
+  const eligibleItems = input.items.filter((item) =>
+    isItemEligibleForPromotion(item, promotion),
+  );
+  const pricedUnits = calculatePromotionUnitPrices({
+    ruleMode: promotion.ruleMode,
+    bundleQuantity: promotion.bundleQuantity,
+    bundlePrice: promotion.bundlePrice,
+    items: eligibleItems.map((item) => ({
+      productVariantId: item.productVariantId,
+      productId: item.productId,
+      quantity: item.quantity,
+      normalUnitPrice: item.sellingPriceMyr,
+    })),
+  });
+
+  return input.items.map((item) => {
+    const itemUnits = pricedUnits.filter(
+      (unit) => unit.productVariantId === item.productVariantId,
+    );
+    if (itemUnits.length === 0) {
+      return {
+        productVariantId: item.productVariantId,
+        unitPrice: roundMoney(item.sellingPriceMyr),
+        totalPrice: roundMoney(item.sellingPriceMyr * item.quantity),
+        promotionId: null,
+      };
+    }
+
+    const totalPrice = roundMoney(
+      itemUnits.reduce((sum, unit) => sum + unit.effectiveUnitPrice, 0),
+    );
+
+    return {
+      productVariantId: item.productVariantId,
+      unitPrice: roundMoney(totalPrice / item.quantity),
+      totalPrice,
+      promotionId: itemUnits.some((unit) => unit.effectiveUnitPrice !== unit.normalUnitPrice)
+        ? promotion.id
+        : null,
+    };
+  });
+}
+
+function hasEligibleBundle(items: PromoterSaleItem[], promotion: PromotionCandidate) {
+  const eligibleItems = items.filter((item) => isItemEligibleForPromotion(item, promotion));
+  const eligibleQuantity = eligibleItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  if (promotion.ruleMode === "MIX_AND_MATCH") {
+    return eligibleQuantity >= promotion.bundleQuantity;
+  }
+
+  return eligibleItems.some((item) => item.quantity >= promotion.bundleQuantity);
+}
+
+function isItemEligibleForPromotion(
+  item: PromoterSaleItem,
+  promotion: PromotionCandidate,
+) {
+  return (
+    promotion.productVariantIds.includes(item.productVariantId) ||
+    promotion.productIds.includes(item.productId)
+  );
 }
 
 function expandItems(items: PromotionItem[]): PromotionUnitPrice[] {
