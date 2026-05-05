@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   buildPromoterSalesHistoryWhere,
   buildPromoterStockDeductionPlan,
+  summarizePromoterSaleHistoryItem,
 } from "./sales";
 
 describe("buildPromoterStockDeductionPlan", () => {
@@ -83,6 +84,34 @@ describe("buildPromoterSalesHistoryWhere", () => {
             },
           },
         ],
+      },
+    );
+  });
+});
+
+describe("summarizePromoterSaleHistoryItem", () => {
+  it("shows returned and remaining quantity for a sale line", () => {
+    assert.deepEqual(
+      summarizePromoterSaleHistoryItem({
+        quantity: 3,
+        promoterReturns: [{ quantity: 1 }, { quantity: 1 }],
+      }),
+      {
+        returnedQuantity: 2,
+        returnableQuantity: 1,
+      },
+    );
+  });
+
+  it("does not show negative remaining quantity when over-returned data exists", () => {
+    assert.deepEqual(
+      summarizePromoterSaleHistoryItem({
+        quantity: 1,
+        promoterReturns: [{ quantity: 2 }],
+      }),
+      {
+        returnedQuantity: 2,
+        returnableQuantity: 0,
       },
     );
   });

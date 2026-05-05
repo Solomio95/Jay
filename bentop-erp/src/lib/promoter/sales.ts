@@ -204,6 +204,7 @@ export async function getPromoterSalesHistory(input: {
       location: { select: { id: true, name: true } },
       items: {
         include: {
+          promoterReturns: { select: { quantity: true } },
           productVariant: {
             select: {
               id: true,
@@ -236,12 +237,28 @@ export async function getPromoterSalesHistory(input: {
     items: order.items.map((item) => ({
       id: item.id,
       quantity: item.quantity,
+      ...summarizePromoterSaleHistoryItem(item),
       unitPrice: Number(item.unitPrice),
       totalPrice: Number(item.totalPrice),
       notes: item.notes,
       productVariant: item.productVariant,
     })),
   }));
+}
+
+export function summarizePromoterSaleHistoryItem(input: {
+  quantity: number;
+  promoterReturns: Array<{ quantity: number }>;
+}) {
+  const returnedQuantity = input.promoterReturns.reduce(
+    (sum, promoterReturn) => sum + promoterReturn.quantity,
+    0,
+  );
+
+  return {
+    returnedQuantity,
+    returnableQuantity: Math.max(0, input.quantity - returnedQuantity),
+  };
 }
 
 export function buildPromoterSalesHistoryWhere(input: {

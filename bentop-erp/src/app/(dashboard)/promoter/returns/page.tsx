@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 type OrderItem = {
   id: string;
   quantity: number;
+  returnedQuantity: number;
+  returnableQuantity: number;
   unitPrice: number;
   totalPrice: number;
   notes: string | null;
@@ -72,6 +74,16 @@ export default function PromoterReturnsPage() {
     const json = await response.json();
     setMessage(response.ok ? "Return submitted." : json.error?.message ?? "Return failed.");
     if (response.ok) {
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === selectedOrder.id
+            ? applyReturnedQuantity(order, orderItemId, quantity)
+            : order,
+        ),
+      );
+      setSelectedOrder((current) =>
+        current ? applyReturnedQuantity(current, orderItemId, quantity) : current,
+      );
       setReturnDrafts((current) => ({
         ...current,
         [orderItemId]: { quantity: 1, reason: "Customer return" },
@@ -125,6 +137,8 @@ export default function PromoterReturnsPage() {
                 <th className="p-2">SKU</th>
                 <th className="p-2">Item</th>
                 <th className="p-2 text-right">Sold</th>
+                <th className="p-2 text-right">Returned</th>
+                <th className="p-2 text-right">Remaining</th>
                 <th className="p-2 text-right">Qty</th>
                 <th className="p-2">Reason</th>
                 <th className="p-2 text-right">Return</th>
@@ -140,20 +154,23 @@ export default function PromoterReturnsPage() {
                       {item.productVariant.product.name} / {item.productVariant.color} / {item.productVariant.size}
                     </td>
                     <td className="p-2 text-right">{item.quantity}</td>
+                    <td className="p-2 text-right">{item.returnedQuantity}</td>
+                    <td className="p-2 text-right">{item.returnableQuantity}</td>
                     <td className="p-2 text-right">
                       <Input
                         className="ml-auto w-20 text-right"
                         type="number"
                         min={1}
-                        max={item.quantity}
+                        max={item.returnableQuantity}
                         value={draft.quantity}
+                        disabled={item.returnableQuantity <= 0}
                         onChange={(event) =>
                           setReturnDrafts((current) => ({
                             ...current,
                             [item.id]: {
                               ...draft,
                               quantity: Math.min(
-                                item.quantity,
+                                item.returnableQuantity,
                                 Math.max(1, Number(event.target.value)),
                               ),
                             },
@@ -164,6 +181,7 @@ export default function PromoterReturnsPage() {
                     <td className="p-2">
                       <Input
                         value={draft.reason}
+                        disabled={item.returnableQuantity <= 0}
                         onChange={(event) =>
                           setReturnDrafts((current) => ({
                             ...current,
@@ -174,8 +192,13 @@ export default function PromoterReturnsPage() {
                       />
                     </td>
                     <td className="p-2 text-right">
-                      <Button type="button" size="sm" onClick={() => submitReturn(item.id)}>
-                        Return
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={item.returnableQuantity <= 0}
+                        onClick={() => submitReturn(item.id)}
+                      >
+                        {item.returnableQuantity <= 0 ? "Returned" : "Return"}
                       </Button>
                     </td>
                   </tr>
@@ -188,4 +211,19 @@ export default function PromoterReturnsPage() {
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
     </div>
   );
+}
+
+function applyReturnedQuantity(order: PromoterOrder, orderItemId: string, quantity: number) {
+  return {
+    ...order,
+    items: order.items.map((item) => {
+      if (item.id !== orderItemId) return item;
+      const returnedQuantity = item.returnedQuantity + quantity;
+      return {
+        ...item,
+        returnedQuantity,
+        returnableQuantity: Math.max(0, item.quantity - returnedQuantity),
+      };
+    }),
+  };
 }
