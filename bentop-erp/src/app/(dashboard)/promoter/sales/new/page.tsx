@@ -23,6 +23,7 @@ export default function PromoterNewSalePage() {
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [locationId, setLocationId] = useState("");
   const [search, setSearch] = useState("");
+  const [stockRefreshKey, setStockRefreshKey] = useState(0);
   const [stock, setStock] = useState<StockRow[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerMode, setCustomerMode] = useState<"walk-in" | "registered">("walk-in");
@@ -49,11 +50,30 @@ export default function PromoterNewSalePage() {
       .then((res) => res.json())
       .then((json) => setStock(json.data?.currentLocationRows ?? []))
       .catch(() => setMessage("Unable to load stock."));
-  }, [locationId, search]);
+  }, [locationId, search, stockRefreshKey]);
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
     [cart],
+  );
+  const pendingQuantityByVariant = useMemo(() => {
+    const quantities = new Map<string, number>();
+    for (const item of cart) {
+      quantities.set(item.variantId, (quantities.get(item.variantId) ?? 0) + item.quantity);
+    }
+    return quantities;
+  }, [cart]);
+  const displayStock = useMemo(
+    () =>
+      stock.map((row) => ({
+        ...row,
+        pendingQuantity: pendingQuantityByVariant.get(row.variantId) ?? 0,
+        displayAvailable: Math.max(
+          0,
+          row.available - (pendingQuantityByVariant.get(row.variantId) ?? 0),
+        ),
+      })),
+    [stock, pendingQuantityByVariant],
   );
 
   function addItem(row: StockRow) {
@@ -62,7 +82,7 @@ export default function PromoterNewSalePage() {
       if (existing) {
         return current.map((item) =>
           item.variantId === row.variantId
-            ? { ...item, quantity: Math.min(item.quantity + 1, row.available) }
+            ? { ...item, quantity: Math.min(item.quantity + 1, item.available) }
             : item,
         );
       }
@@ -96,6 +116,7 @@ export default function PromoterNewSalePage() {
     setCart([]);
     setCustomerName("");
     setCustomerPhone("");
+    setStockRefreshKey((current) => current + 1);
     setMessage(`Sale submitted: ${json.data.orderNumber}`);
   }
 
@@ -145,19 +166,26 @@ export default function PromoterNewSalePage() {
                 </tr>
               </thead>
               <tbody>
-                {stock.slice(0, 30).map((row) => (
+                {displayStock.slice(0, 30).map((row) => (
                   <tr key={row.variantId} className="border-t">
                     <td className="p-2 font-medium">{row.sku}</td>
                     <td className="p-2 text-muted-foreground">
                       {row.productName} / {row.color} / {row.size}
                     </td>
-                    <td className="p-2 text-right">{row.available}</td>
+                    <td className="p-2 text-right">
+                      <div>{row.displayAvailable}</div>
+                      {row.pendingQuantity > 0 && (
+                        <div className="text-[11px] text-amber-600">
+                          {row.pendingQuantity} pending
+                        </div>
+                      )}
+                    </td>
                     <td className="p-2 text-right">
                       <Button
                         type="button"
                         size="icon"
                         variant="outline"
-                        disabled={row.available <= 0}
+                        disabled={row.displayAvailable <= 0}
                         onClick={() => addItem(row)}
                         aria-label="Add item"
                       >
@@ -211,7 +239,13 @@ export default function PromoterNewSalePage() {
                     setCart((current) =>
                       current.map((row) =>
                         row.variantId === item.variantId
-                          ? { ...row, quantity: Number(event.target.value) }
+                          ? {
+                              ...row,
+                              quantity: Math.min(
+                                row.available,
+                                Math.max(1, Number(event.target.value)),
+                              ),
+                            }
                           : row,
                       ),
                     )
