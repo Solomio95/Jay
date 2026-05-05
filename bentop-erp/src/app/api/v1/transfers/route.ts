@@ -16,6 +16,17 @@ export async function GET(request: NextRequest) {
       );
     }
   
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { supervisedLocations: { select: { id: true } } },
+    });
+    if (!user) {
+      return Response.json(
+        { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        { status: 401 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");
     const locationId = searchParams.get("locationId");
@@ -25,7 +36,33 @@ export async function GET(request: NextRequest) {
     const where: Prisma.StockTransferWhereInput = {};
     if (status) where.status = status as Prisma.StockTransferWhereInput["status"];
     if (locationId) {
-      where.OR = [{ fromLocationId: locationId }, { toLocationId: locationId }];
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: [{ fromLocationId: locationId }, { toLocationId: locationId }] },
+      ];
+    }
+
+    if (user.role === "PROMOTER") {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { requestedById: user.id },
+      ];
+    } else if (user.role === "SUPERVISOR") {
+      const supervisedLocationIds = user.supervisedLocations.map((location) => location.id);
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [
+            { fromLocationId: { in: supervisedLocationIds } },
+            { toLocationId: { in: supervisedLocationIds } },
+          ],
+        },
+      ];
+    } else if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { requestedById: user.id },
+      ];
     }
   
     const [transfers, total] = await Promise.all([
