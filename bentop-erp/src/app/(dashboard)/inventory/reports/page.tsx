@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import Link from "next/link";
 import {
   Package,
   AlertTriangle,
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { CsvImportToolsClient } from "@/components/inventory/csv-import-tools-client";
 
 export default async function InventoryReportsPage() {
   // Aggregate stock levels (batchId = null rows)
@@ -170,20 +170,7 @@ export default async function InventoryReportsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/api/v1/imports/templates/product-variants">Product Template</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/api/v1/imports/templates/locations">Location Template</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/api/v1/imports/templates/consignment-partners">Partner Template</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/api/v1/imports/templates/opening-stock">Opening Stock Template</Link>
-            </Button>
-          </div>
+          <CsvImportToolsClient />
         </CardContent>
       </Card>
 

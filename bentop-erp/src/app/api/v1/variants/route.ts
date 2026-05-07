@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         color: v.color,
         colorHex: v.colorHex,
         barcode: v.barcode,
+        sellingPriceMyr: Number(v.sellingPriceMyr),
         productId: v.product.id,
         productName: v.product.name,
         productSkuPrefix: v.product.skuPrefix,

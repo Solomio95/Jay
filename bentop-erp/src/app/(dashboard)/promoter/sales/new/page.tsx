@@ -8,6 +8,7 @@ import {
   calculatePromoterSaleLinePrices,
   type PromotionCandidate,
 } from "@/lib/promoter/promotions";
+import { findScannedVariant } from "@/lib/barcode";
 
 type LocationOption = { id: string; name: string; isDefault: boolean };
 type StockRow = {
@@ -117,6 +118,21 @@ export default function PromoterNewSalePage() {
     });
   }
 
+  function addScannedItem() {
+    setMessage("");
+    const match = findScannedVariant(displayStock, search);
+    if (!match) {
+      setMessage("No exact SKU or barcode match found.");
+      return;
+    }
+    if (match.displayAvailable <= 0) {
+      setMessage("This item has no available stock at this location.");
+      return;
+    }
+    addItem(match);
+    setSearch("");
+  }
+
   async function submitSale() {
     setMessage("");
     const response = await fetch("/api/v1/promoter/sales", {
@@ -174,9 +190,15 @@ export default function PromoterNewSalePage() {
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addScannedItem();
+                }
+              }}
               placeholder="Scan barcode or search SKU"
             />
-            <Button type="button" variant="outline" size="icon" aria-label="Scan">
+            <Button type="button" variant="outline" size="icon" aria-label="Scan" onClick={addScannedItem}>
               <ScanLine className="h-4 w-4" />
             </Button>
           </div>

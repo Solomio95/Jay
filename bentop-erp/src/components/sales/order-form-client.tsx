@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Search, X } from "lucide-react";
+import { ScanLine, Trash2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { VariantPicker, type VariantOption } from "@/components/inventory/variant-picker";
 import { formatCurrency } from "@/lib/utils";
+import { findScannedVariant } from "@/lib/barcode";
 
 type Location = { id: string; name: string; type: string };
 type Channel = { id: string; name: string; type: string };
@@ -69,6 +70,7 @@ export function OrderFormClient({ locations, channels, defaultCustomerId, defaul
   const [paymentStatus, setPaymentStatus] = useState<"UNPAID" | "PARTIAL" | "PAID">("UNPAID");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
+  const [scanValue, setScanValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -136,10 +138,48 @@ export function OrderFormClient({ locations, channels, defaultCustomerId, defaul
       );
       availableForSale = aggregate ? aggregate.quantityOnHand - aggregate.quantityReserved : 0;
     }
-    setLines((prev) => [
-      ...prev,
-      { variant: v, quantity: 1, unitPrice: 0, discountAmount: 0, availableForSale },
-    ]);
+    setLines((prev) => {
+      const existing = prev.find((line) => line.variant.id === v.id);
+      if (existing) {
+        return prev.map((line) =>
+          line.variant.id === v.id
+            ? { ...line, quantity: Math.min(line.quantity + 1, Math.max(1, line.availableForSale)) }
+            : line,
+        );
+      }
+      return [
+        ...prev,
+        {
+          variant: v,
+          quantity: 1,
+          unitPrice: v.sellingPriceMyr,
+          discountAmount: 0,
+          availableForSale,
+        },
+      ];
+    });
+  };
+
+  const addScannedLine = async () => {
+    const trimmed = scanValue.trim();
+    if (!trimmed) return;
+    setError("");
+
+    const res = await fetch(`/api/v1/variants?search=${encodeURIComponent(trimmed)}&limit=20`);
+    if (!res.ok) {
+      setError("Unable to search SKU or barcode.");
+      return;
+    }
+
+    const data = await res.json();
+    const match = findScannedVariant((data.data ?? []) as VariantOption[], trimmed);
+    if (!match) {
+      setError("No exact SKU or barcode match found.");
+      return;
+    }
+
+    await addLine(match);
+    setScanValue("");
   };
 
   const updateLine = (idx: number, patch: Partial<Line>) => {
@@ -289,6 +329,22 @@ export function OrderFormClient({ locations, channels, defaultCustomerId, defaul
           {/* Items */}
           <div className="border rounded-lg p-4 space-y-3">
             <Label className="text-sm font-semibold">Items</Label>
+            <div className="flex gap-2">
+              <Input
+                value={scanValue}
+                onChange={(event) => setScanValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void addScannedLine();
+                  }
+                }}
+                placeholder="Scan barcode or exact SKU"
+              />
+              <Button type="button" variant="outline" size="icon" aria-label="Add scanned item" onClick={addScannedLine}>
+                <ScanLine className="h-4 w-4" />
+              </Button>
+            </div>
             <VariantPicker onSelect={addLine} excludeIds={lines.map((l) => l.variant.id)} />
 
             {lines.length > 0 && (
