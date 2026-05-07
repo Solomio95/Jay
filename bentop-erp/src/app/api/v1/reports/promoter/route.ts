@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { canViewReports, forbiddenResponse } from "@/lib/permissions";
-import { getConsignmentReport } from "@/lib/reports/consignment";
+import { getPromoterReport } from "@/lib/reports/promoter";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,15 +20,10 @@ export async function GET(request: NextRequest) {
     }
 
     const sp = request.nextUrl.searchParams;
-    const days = sp.get("days");
-    const data = await getConsignmentReport({
-      days: days ? parseInt(days, 10) : undefined,
-      from: sp.get("from"),
-      to: sp.get("to"),
-      partnerId: sp.get("partnerId"),
+    const data = await getPromoterReport({
+      month: sp.get("month"),
       locationId: sp.get("locationId"),
-      productId: sp.get("productId"),
-      productVariantId: sp.get("productVariantId"),
+      promoterId: sp.get("promoterId"),
     });
 
     return Response.json({ data });

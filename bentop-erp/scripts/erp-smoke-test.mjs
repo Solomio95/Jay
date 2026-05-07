@@ -94,6 +94,7 @@ async function main() {
     "/api/v1/customers",
     "/api/v1/reports/sales",
     "/api/v1/reports/inventory",
+    "/api/v1/reports/promoter",
   ]);
 
   await smokeApi(admin, "admin consignment APIs", [
@@ -163,6 +164,7 @@ async function main() {
     "/api/v1/reports/sales",
     "/api/v1/reports/inventory",
     "/api/v1/reports/consignment",
+    "/api/v1/reports/promoter",
   ]);
 
   await check("viewer cannot create products", async () => {
@@ -209,6 +211,7 @@ async function main() {
     "/sales",
     "/sales/orders",
     "/sales/reports",
+    "/promoter/reports",
     "/consignment",
     "/consignment/stock",
     "/consignment/partners",

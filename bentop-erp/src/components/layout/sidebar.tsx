@@ -60,6 +60,7 @@ const navItems: NavItem[] = [
       { title: "POS", href: "/sales/pos" },
       { title: "Customers", href: "/sales/customers" },
       { title: "Reports", href: "/sales/reports" },
+      { title: "Promoter Reports", href: "/promoter/reports" },
     ],
   },
   {

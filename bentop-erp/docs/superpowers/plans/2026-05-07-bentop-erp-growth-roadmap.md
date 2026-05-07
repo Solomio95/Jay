@@ -505,7 +505,7 @@ Expected: all pass.
 - Modify: `src/app/api/v1/reports/sales/route.ts`
 - Modify: `src/app/api/v1/reports/consignment/route.ts`
 
-- [ ] **Step 1: Extract report services**
+- [x] **Step 1: Extract report services**
 
 Reports should support:
 - Date range.
@@ -514,7 +514,7 @@ Reports should support:
 - Product/parent SKU filter.
 - Sub SKU filter.
 
-- [ ] **Step 2: Add report totals**
+- [x] **Step 2: Add report totals**
 
 Inventory:
 - On hand
@@ -546,7 +546,7 @@ Promoter:
 - Rank
 - Tier
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
