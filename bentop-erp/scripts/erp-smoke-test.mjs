@@ -101,6 +101,29 @@ async function main() {
     "/api/v1/purchase-orders",
   ]);
 
+  await smokeCsv(admin, "admin export CSVs", [
+    "/api/v1/exports/stock",
+    "/api/v1/exports/products",
+    "/api/v1/exports/consignment-invoices",
+    "/api/v1/exports/payments",
+    "/api/v1/imports/templates/product-variants",
+    "/api/v1/imports/templates/opening-stock",
+  ]);
+
+  await check("admin import validation API accepts CSV text", async () => {
+    const response = await admin.request("/api/v1/imports/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "product-variants",
+        csv: "productName,skuPrefix,categoryName,sku,size,color,baseCostMyr,sellingPriceMyr\nTest,TST,Test,TST-S,S,Black,10,29.9",
+      }),
+    });
+    assertStatus(response, [200]);
+    const json = await response.json();
+    assert(json.data?.validRows === 1, "expected one valid import row");
+  });
+
   await smokeApi(promoter, "promoter APIs", [
     "/api/v1/promoter/context",
     "/api/v1/promoter/stock",
@@ -200,6 +223,19 @@ async function smokeApi(session, groupName, paths) {
       assert(contentType.includes("application/json"), `expected JSON, got ${contentType}`);
       const json = await response.json();
       assert("data" in json || "pagination" in json, "response has no data payload");
+    });
+  }
+}
+
+async function smokeCsv(session, groupName, paths) {
+  for (const path of paths) {
+    await check(`${groupName}: GET ${path}`, async () => {
+      const response = await session.request(path);
+      assertStatus(response, [200]);
+      const contentType = response.headers.get("content-type") ?? "";
+      assert(contentType.includes("text/csv"), `expected CSV, got ${contentType}`);
+      const text = await response.text();
+      assert(text.includes(","), "CSV response does not look like tabular data");
     });
   }
 }

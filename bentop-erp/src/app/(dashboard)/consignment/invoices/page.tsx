@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, Receipt, Wallet } from "lucide-react";
+import { CalendarDays, Download, Receipt, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,11 +50,27 @@ export default async function ConsignmentInvoicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Consignment Invoices</h2>
-        <p className="text-muted-foreground">
-          Invoices raised to collect net sales from consignment partners.
-        </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Consignment Invoices</h2>
+          <p className="text-muted-foreground">
+            Invoices raised to collect net sales from consignment partners.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/v1/exports/consignment-invoices">
+              <Download className="mr-2 h-4 w-4" />
+              Invoices CSV
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/v1/exports/payments">
+              <Download className="mr-2 h-4 w-4" />
+              Payments CSV
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

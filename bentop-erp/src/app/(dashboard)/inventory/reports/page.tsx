@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import {
   Package,
   AlertTriangle,
   TrendingDown,
   Warehouse,
+  Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -135,11 +138,54 @@ export default async function InventoryReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Inventory Reports</h2>
-        <p className="text-muted-foreground">
-          Stock valuation, location distribution, and reorder alerts.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Inventory Reports</h2>
+            <p className="text-muted-foreground">
+              Stock valuation, location distribution, and reorder alerts.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <a href="/api/v1/exports/stock">
+                <Download className="mr-2 h-4 w-4" />
+                Stock CSV
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href="/api/v1/exports/products">
+                <Download className="mr-2 h-4 w-4" />
+                Product CSV
+              </a>
+            </Button>
+          </div>
+        </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Import and Export Tools</CardTitle>
+          <CardDescription>
+            Download clean templates, validate CSV data first, then import only after row errors are fixed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/api/v1/imports/templates/product-variants">Product Template</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/api/v1/imports/templates/locations">Location Template</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/api/v1/imports/templates/consignment-partners">Partner Template</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/api/v1/imports/templates/opening-stock">Opening Stock Template</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
