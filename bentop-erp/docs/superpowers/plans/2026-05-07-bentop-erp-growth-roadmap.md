@@ -565,7 +565,7 @@ Expected: all pass.
 - Modify: `src/app/(dashboard)/consignment/reports/page.tsx`
 - Create: `src/app/(dashboard)/promoter/reports/page.tsx`
 
-- [ ] **Step 1: Add filters**
+  - [x] **Step 1: Add filters**
 
 Each report page should support:
 - Date range.
@@ -573,13 +573,13 @@ Each report page should support:
 - Product/SKU.
 - Partner where applicable.
 
-- [ ] **Step 2: Add export buttons**
+  - [x] **Step 2: Add export buttons**
 
 Export:
 - CSV first.
 - PDF later only after CSV is stable.
 
-- [ ] **Step 3: Verify**
+  - [x] **Step 3: Verify**
 
 Run:
 

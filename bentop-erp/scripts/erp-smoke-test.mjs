@@ -113,6 +113,10 @@ async function main() {
     "/api/v1/exports/products",
     "/api/v1/exports/consignment-invoices",
     "/api/v1/exports/payments",
+    "/api/v1/exports/reports/inventory",
+    "/api/v1/exports/reports/sales",
+    "/api/v1/exports/reports/consignment",
+    "/api/v1/exports/reports/promoter",
     "/api/v1/imports/templates/product-variants",
     "/api/v1/imports/templates/opening-stock",
   ]);
