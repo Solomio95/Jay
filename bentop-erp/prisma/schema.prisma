@@ -44,6 +44,8 @@ model User {
   approvedMovements  StockMovement[]  @relation("ApprovedBy")
   acknowledgedAlerts StockAlert[]
   ordersCreated      Order[]
+  purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  purchaseReceiptsCreated PurchaseReceipt[] @relation("PurchaseReceiptCreatedBy")
   statusChanges      OrderStatusHistory[]
   transfersRequested StockTransfer[]  @relation("TransferRequested")
   transfersApproved  StockTransfer[]  @relation("TransferApproved")
@@ -143,6 +145,8 @@ model ProductVariant {
   movements     StockMovement[]
   alerts        StockAlert[]
   orderItems    OrderItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
   transferItems StockTransferItem[]
   consignmentItems ConsignmentShipmentItem[]
   consignmentOverrides ConsignmentCommissionOverride[]
@@ -169,6 +173,7 @@ model Batch {
   stockLevels    StockLevel[]
   movements      StockMovement[]
   orderItems     OrderItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
   transferItems  StockTransferItem[]
   consignmentItems ConsignmentShipmentItem[]
 
@@ -204,6 +209,7 @@ model Location {
   transfersTo    StockTransfer[] @relation("TransferTo")
   consignmentShipmentsFrom ConsignmentShipment[] @relation("ConsignmentFrom")
   consignmentShipmentsTo   ConsignmentShipment[] @relation("ConsignmentTo")
+  purchaseReceipts PurchaseReceipt[]
   consignmentPartner ConsignmentPartner?
   defaultUsers User[] @relation("UserDefaultLocation")
   supervisors User[] @relation("LocationSupervisors")
@@ -356,6 +362,119 @@ model StockTransferItem {
 }
 
 // ─── Sales & Orders ─────────────────────────────────────────────
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIAL_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model Supplier {
+  id               String   @id @default(cuid())
+  name             String
+  code             String?  @unique
+  contactPerson    String?
+  email            String?
+  phone            String?
+  address          String?
+  paymentTermsDays Int?
+  notes            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(cuid())
+  orderNumber  String              @unique
+  supplierId   String
+  status       PurchaseOrderStatus @default(DRAFT)
+  orderDate    DateTime            @default(now())
+  expectedDate DateTime?
+  notes        String?
+  createdById  String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  items     PurchaseOrderItem[]
+  receipts  PurchaseReceipt[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String  @id @default(cuid())
+  purchaseOrderId  String
+  productVariantId String
+  quantityOrdered  Int
+  quantityReceived Int     @default(0)
+  costPerUnitMyr   Decimal @db.Decimal(10, 2)
+  notes            String?
+
+  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant       @relation(fields: [productVariantId], references: [id])
+  receiptItems   PurchaseReceiptItem[]
+
+  @@index([purchaseOrderId])
+  @@index([productVariantId])
+  @@map("purchase_order_items")
+}
+
+model PurchaseReceipt {
+  id              String   @id @default(cuid())
+  receiptNumber   String   @unique
+  purchaseOrderId String
+  locationId      String
+  receivedAt      DateTime @default(now())
+  supplierName    String?
+  referenceNumber String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  location      Location              @relation(fields: [locationId], references: [id])
+  createdBy     User                  @relation("PurchaseReceiptCreatedBy", fields: [createdById], references: [id])
+  items         PurchaseReceiptItem[]
+
+  @@index([purchaseOrderId])
+  @@index([locationId])
+  @@index([receivedAt])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id                  String  @id @default(cuid())
+  purchaseReceiptId   String
+  purchaseOrderItemId String
+  productVariantId    String
+  batchId             String
+  quantityReceived    Int
+  costPerUnitMyr      Decimal @db.Decimal(10, 2)
+  binLocation         String?
+
+  purchaseReceipt  PurchaseReceipt   @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  productVariant   ProductVariant    @relation(fields: [productVariantId], references: [id])
+  batch            Batch             @relation(fields: [batchId], references: [id])
+
+  @@index([purchaseReceiptId])
+  @@index([purchaseOrderItemId])
+  @@index([productVariantId])
+  @@map("purchase_receipt_items")
+}
 
 enum CustomerType {
   RETAIL

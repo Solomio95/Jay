@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   Trophy,
   History,
+  ClipboardCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -72,6 +73,16 @@ const navItems: NavItem[] = [
       { title: "Partners", href: "/consignment/partners" },
       { title: "Reports", href: "/consignment/reports" },
       { title: "Invoices", href: "/consignment/invoices" },
+    ],
+  },
+  {
+    title: "Purchases",
+    href: "/purchases",
+    icon: <ClipboardCheck className="h-5 w-5" />,
+    children: [
+      { title: "Overview", href: "/purchases" },
+      { title: "Suppliers", href: "/purchases/suppliers" },
+      { title: "Orders", href: "/purchases/orders" },
     ],
   },
   {

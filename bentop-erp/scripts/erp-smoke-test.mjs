@@ -96,6 +96,11 @@ async function main() {
     "/api/v1/reports/consignment",
   ]);
 
+  await smokeApi(admin, "admin purchase APIs", [
+    "/api/v1/suppliers",
+    "/api/v1/purchase-orders",
+  ]);
+
   await smokeApi(promoter, "promoter APIs", [
     "/api/v1/promoter/context",
     "/api/v1/promoter/stock",
@@ -123,6 +128,9 @@ async function main() {
     "/consignment/partners",
     "/consignment/reports",
     "/consignment/invoices",
+    "/purchases",
+    "/purchases/suppliers",
+    "/purchases/orders",
     "/settings",
   ]);
 
