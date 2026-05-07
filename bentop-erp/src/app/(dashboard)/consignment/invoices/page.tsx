@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, Download, Receipt, Wallet } from "lucide-react";
+import { CalendarDays, Download, Printer, Receipt, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,7 @@ export default async function ConsignmentInvoicesPage() {
                     <TableHead className="text-right">Balance</TableHead>
                     <TableHead>Due</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Print</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -148,6 +149,14 @@ export default async function ConsignmentInvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={INVOICE_STATUS_COLOR[invoice.status]}>{invoice.status}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button asChild size="sm" variant="ghost">
+                            <Link href={`/consignment/invoices/${invoice.id}/print`}>
+                              <Printer className="h-4 w-4" />
+                              <span className="sr-only">Print {invoice.invoiceNumber}</span>
+                            </Link>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

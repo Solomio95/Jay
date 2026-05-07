@@ -227,6 +227,8 @@ async function main() {
     "/settings",
   ]);
 
+  await smokeFirstConsignmentInvoicePrintPage(admin);
+
   await smokePages(promoter, "promoter pages", [
     "/promoter/sales",
     "/promoter/sales/new",
@@ -321,6 +323,25 @@ async function smokePages(session, groupName, paths) {
       assert(!html.includes("This site can't be reached"), "browser error text detected");
     });
   }
+}
+
+async function smokeFirstConsignmentInvoicePrintPage(session) {
+  await check("admin consignment invoice print page", async () => {
+    const response = await session.request("/consignment/invoices");
+    assertStatus(response, [200]);
+    const html = await response.text();
+    const match = html.match(/\/consignment\/invoices\/([^"/]+)\/print/);
+    if (!match) {
+      return;
+    }
+
+    const printResponse = await session.request(`/consignment/invoices/${match[1]}/print`);
+    assertStatus(printResponse, [200]);
+    const printHtml = await printResponse.text();
+    assert(printHtml.includes("Consignment Invoice"), "print page did not render invoice document");
+    assert(!printHtml.includes("Runtime Error"), "Next.js runtime error overlay detected");
+    assert(!printHtml.includes("Hydration failed"), "hydration error overlay detected");
+  });
 }
 
 async function check(name, fn) {
