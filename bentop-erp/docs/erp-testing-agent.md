@@ -44,6 +44,225 @@ Consignment agent:
 
 ## Full Manual Test Matrix
 
+Use this checklist when you want a human to test the ERP. The automated smoke test checks that pages and APIs load, but these items need a person because they involve business meaning, screen clarity, invoice correctness, and real-world workflow decisions.
+
+## Human Testing Checklist
+
+### Before Testing
+
+- [ ] Docker Desktop is running.
+- [ ] Local database is running.
+- [ ] App is open at `http://localhost:3000/login`.
+- [ ] You know which database you are testing: demo data, copied real data, or fresh empty data.
+- [ ] You have test logins for Admin, Promoter, and Supervisor.
+- [ ] You have at least one test product with parent SKU and sub SKU.
+- [ ] You have at least one consignment location with stock.
+- [ ] You have at least one consignment partner with commission tiers.
+- [ ] You have at least one promoter assigned to a consignment location.
+
+### Admin Setup
+
+- [ ] Login as Admin.
+- [ ] Confirm the dashboard loads without error.
+- [ ] Open `/inventory/products`.
+- [ ] Search by product name.
+- [ ] Search by parent SKU.
+- [ ] Search by sub SKU.
+- [ ] Open one product and confirm variants are visible.
+- [ ] Confirm each sub SKU has selling price set by HQ.
+- [ ] Confirm product and variant names are understandable for real staff.
+- [ ] Open `/inventory/locations`.
+- [ ] Confirm consignment locations are active and correctly named.
+- [ ] Open `/inventory/stock`.
+- [ ] Filter by location.
+- [ ] Filter by product or SKU.
+- [ ] Confirm stock on hand, reserved, and available quantity look correct.
+
+### Consignment Stock
+
+- [ ] Open `/consignment/stock`.
+- [ ] Confirm top summary totals are easy to understand.
+- [ ] Confirm parent SKU/product rows appear first.
+- [ ] Confirm sub SKU/location detail rows appear below each parent product.
+- [ ] Search by parent SKU.
+- [ ] Search by sub SKU.
+- [ ] Search by partner name.
+- [ ] Search by location name.
+- [ ] Filter by partner.
+- [ ] Filter by location.
+- [ ] Confirm the page is still usable when many locations exist.
+- [ ] Confirm stock shown here matches `/inventory/stock` for the same location and SKU.
+
+### Consignment Partner And Commission
+
+- [ ] Open `/consignment/partners`.
+- [ ] Confirm partner contact details are correct.
+- [ ] Confirm payment terms are correct.
+- [ ] Confirm commission tiers are correct.
+- [ ] Test price below RM50 uses Super Best Buy tier.
+- [ ] Test price RM50 to RM109 uses Best Buy tier.
+- [ ] Test price RM110 and above uses Normal tier.
+- [ ] Confirm discounted final selling price changes the tier correctly.
+- [ ] Confirm product-specific override works.
+- [ ] Confirm sub-SKU-specific override works.
+
+### Consignment Shipment
+
+- [ ] Open `/consignment/shipments/new`.
+- [ ] Select source warehouse.
+- [ ] Select consignment partner.
+- [ ] Confirm partner location fills correctly.
+- [ ] Add multiple sub SKUs.
+- [ ] Confirm shipped quantity cannot exceed available stock.
+- [ ] Save draft shipment.
+- [ ] Ship the shipment.
+- [ ] Confirm source stock decreases.
+- [ ] Confirm consignment location stock increases.
+- [ ] Open shipment detail page and confirm status is correct.
+
+### Consignment Sales, Returns, And Invoice
+
+- [ ] Open a shipped consignment shipment.
+- [ ] Create a sales and returns report for a date range.
+- [ ] Enter sold quantity for at least one item.
+- [ ] Enter returned quantity for at least one item.
+- [ ] Confirm sold and returned quantities are shown separately.
+- [ ] Confirm report date range is correct.
+- [ ] Confirm commission tier uses actual final selling price.
+- [ ] Confirm gross amount is correct.
+- [ ] Confirm commission amount is correct.
+- [ ] Confirm net amount payable to Bentop is correct.
+- [ ] Finalize the report.
+- [ ] Confirm invoice is created.
+- [ ] Open `/consignment/invoices`.
+- [ ] Open invoice detail.
+- [ ] Confirm invoice date and due date are correct.
+- [ ] Confirm invoice lines match the report.
+- [ ] Confirm returned stock is handled correctly.
+
+### Promoter Login And Location Lock
+
+- [ ] Login as Promoter.
+- [ ] Confirm promoter does not see confusing HQ-only menu items.
+- [ ] Open `/promoter/sales/new`.
+- [ ] Confirm promoter's default location is selected.
+- [ ] Confirm sale location cannot be changed to unauthorized locations.
+- [ ] Confirm temporary covered location appears only if HQ assigned it.
+- [ ] Confirm expired temporary location does not appear.
+
+### Promoter Stock View
+
+- [ ] Open `/promoter/stock`.
+- [ ] Search by product name.
+- [ ] Search by parent SKU.
+- [ ] Search by sub SKU.
+- [ ] Confirm current location stock is easy to see.
+- [ ] Confirm available stock is clear.
+- [ ] Confirm pending or reserved stock is clear.
+- [ ] Confirm other-location stock, if shown, is only for transfer request purpose.
+- [ ] Confirm promoter cannot directly edit stock.
+
+### Promoter New Sale
+
+- [ ] Open `/promoter/sales/new`.
+- [ ] Search and select a sub SKU.
+- [ ] Confirm selling price is filled from HQ setting.
+- [ ] Confirm promoter cannot manually key selling price.
+- [ ] Add item to cart.
+- [ ] Confirm available stock visually decreases as pending before submit.
+- [ ] Add multiple items in one order.
+- [ ] Test active promotion, such as 2 for RM100.
+- [ ] Confirm final deal price per unit is used for commission and reporting.
+- [ ] Confirm payment method is Consignment Partner only for consignment locations.
+- [ ] Submit sale.
+- [ ] Confirm sale becomes final immediately.
+- [ ] Confirm stock decreases after submit.
+- [ ] Confirm sale appears in sales history.
+
+### Promoter Return
+
+- [ ] Open `/promoter/returns`.
+- [ ] Search a sale by order number, customer, or SKU.
+- [ ] Return one item.
+- [ ] Confirm return succeeds.
+- [ ] Confirm returned quantity appears on the sale.
+- [ ] Confirm stock increases back.
+- [ ] Try returning more than sold quantity.
+- [ ] Confirm system blocks over-return.
+- [ ] Open `/promoter/sales`.
+- [ ] Confirm returned amount is deducted.
+- [ ] Confirm net sales amount is correct.
+
+### Promoter Sales History
+
+- [ ] Open `/promoter/sales`.
+- [ ] Filter by today.
+- [ ] Filter by date range.
+- [ ] Search by order number.
+- [ ] Search by SKU.
+- [ ] Confirm gross sales are shown.
+- [ ] Confirm returned amount is shown.
+- [ ] Confirm net sales after return is shown.
+- [ ] Confirm customer name is optional but saved if entered.
+- [ ] Confirm customer is recorded with promoter and location.
+
+### Promoter Leaderboard
+
+- [ ] Open `/promoter/leaderboard`.
+- [ ] Confirm monthly leaderboard is shown.
+- [ ] Confirm tier group is shown.
+- [ ] Confirm monthly sales amount matches sales history net amount.
+- [ ] Confirm returned sales are deducted.
+- [ ] Confirm location grouping is correct.
+- [ ] Confirm tier thresholds match HQ setup.
+
+### Promoter Transfer Request
+
+- [ ] Open `/promoter/stock`.
+- [ ] Find a product available at another location.
+- [ ] Create transfer request.
+- [ ] Confirm requested quantity becomes reserved or pending.
+- [ ] Login as Supervisor.
+- [ ] Confirm Supervisor can see the request.
+- [ ] Confirm Supervisor can approve or act on the request.
+- [ ] Confirm unresolved request should escalate after 4 hours.
+- [ ] Confirm stock does not disappear incorrectly during transfer.
+
+### Supervisor Testing
+
+- [ ] Login as Supervisor.
+- [ ] Open transfer requests.
+- [ ] Confirm only relevant location requests are visible.
+- [ ] Approve a transfer request.
+- [ ] Complete a transfer request.
+- [ ] Confirm source stock decreases.
+- [ ] Confirm destination stock increases.
+- [ ] Confirm promoter can see the updated stock.
+
+### Access And Safety
+
+- [ ] As Promoter, try opening `/inventory`.
+- [ ] As Promoter, try opening `/sales/orders`.
+- [ ] As Promoter, try opening `/consignment`.
+- [ ] Confirm access is blocked or safely scoped.
+- [ ] As Supervisor, confirm they cannot change unrelated HQ setup.
+- [ ] As wrong user, confirm no other promoter's sales can be changed.
+- [ ] Logout and confirm protected pages redirect to login.
+
+### Human Sign-Off
+
+- [ ] Admin setup looks correct.
+- [ ] Promoter sale flow is easy enough for real promoter use.
+- [ ] Promoter return flow is understandable.
+- [ ] Consignment stock is clear for many locations.
+- [ ] Sales and returns report is usable for opening invoice.
+- [ ] Commission calculation matches Bentop business rules.
+- [ ] Invoice amount matches expected collection from partner.
+- [ ] No confusing or unnecessary page is visible to the wrong role.
+- [ ] Tester name:
+- [ ] Test date:
+- [ ] Notes or issues found:
+
 ### Auth And Setup
 
 1. Start the server with `npm run dev`.
