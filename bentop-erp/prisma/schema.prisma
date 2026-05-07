@@ -53,6 +53,7 @@ model User {
   consignmentShipmentsCreated ConsignmentShipment[] @relation("ConsignmentCreatedBy")
   consignmentReportsCreated ConsignmentReport[] @relation("ConsignmentReportCreatedBy")
   consignmentReportsFinalized ConsignmentReport[] @relation("ConsignmentReportFinalizedBy")
+  consignmentInvoicePaymentsCreated ConsignmentInvoicePayment[] @relation("ConsignmentInvoicePaymentCreatedBy")
 
   @@map("users")
 }
@@ -830,8 +831,17 @@ enum ConsignmentReportStatus {
 enum ConsignmentInvoiceStatus {
   DRAFT
   ISSUED
+  PARTIAL_PAID
   PAID
   VOID
+}
+
+enum InvoicePaymentMethod {
+  BANK_TRANSFER
+  EWALLET
+  CARD
+  CHEQUE
+  OTHER
 }
 
 model ConsignmentPartner {
@@ -1048,6 +1058,7 @@ model ConsignmentInvoice {
   shipment ConsignmentShipment @relation(fields: [shipmentId], references: [id])
   report   ConsignmentReport   @relation(fields: [reportId, partnerId, shipmentId], references: [id, partnerId, shipmentId])
   lines    ConsignmentInvoiceLine[]
+  payments ConsignmentInvoicePayment[]
 
   @@unique([id, reportId])
   @@index([partnerId])
@@ -1056,6 +1067,26 @@ model ConsignmentInvoice {
   @@index([status])
   @@index([createdAt])
   @@map("consignment_invoices")
+}
+
+model ConsignmentInvoicePayment {
+  id              String               @id @default(cuid())
+  invoiceId       String
+  paymentDate     DateTime
+  amount          Decimal              @db.Decimal(12, 2)
+  paymentMethod   InvoicePaymentMethod
+  referenceNumber String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime             @default(now())
+
+  invoice   ConsignmentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("ConsignmentInvoicePaymentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([createdById])
+  @@map("consignment_invoice_payments")
 }
 
 model ConsignmentInvoiceLine {

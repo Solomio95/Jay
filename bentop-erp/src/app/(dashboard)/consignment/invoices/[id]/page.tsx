@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, FileText, MapPin, User } from "lucide-react";
+import { ArrowLeft, CalendarDays, FileText, MapPin, User, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 const INVOICE_STATUS_COLOR: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
   DRAFT: "secondary",
   ISSUED: "default",
+  PARTIAL_PAID: "warning",
   PAID: "success",
   VOID: "destructive",
 };
@@ -48,6 +49,10 @@ export default async function ConsignmentInvoiceDetailPage({
         },
       },
       lines: { orderBy: { id: "asc" } },
+      payments: {
+        include: { createdBy: { select: { name: true, email: true } } },
+        orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
+      },
     },
   });
 
@@ -55,7 +60,8 @@ export default async function ConsignmentInvoiceDetailPage({
     notFound();
   }
 
-  const returnedUnits = invoice.report.lines.reduce((sum, line) => sum + line.quantityReturned, 0);
+  const paidAmount = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const balanceAmount = Math.max(0, Number(invoice.netAmount) - paidAmount);
 
   return (
     <div className="space-y-6">
@@ -78,12 +84,13 @@ export default async function ConsignmentInvoiceDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <Metric label="Gross Sales" value={formatCurrency(Number(invoice.grossAmount), "MYR")} />
         <Metric label="Commission" value={formatCurrency(Number(invoice.commissionAmount), "MYR")} />
         <Metric label="Net To Bentop" value={formatCurrency(Number(invoice.netAmount), "MYR")} />
+        <Metric label="Paid" value={formatCurrency(paidAmount, "MYR")} />
+        <Metric label="Outstanding" value={formatCurrency(balanceAmount, "MYR")} />
         <Metric label="Sold Units" value={invoice.lines.reduce((sum, line) => sum + line.quantitySold, 0).toLocaleString()} />
-        <Metric label="Returned Units" value={returnedUnits.toLocaleString()} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -180,6 +187,34 @@ export default async function ConsignmentInvoiceDetailPage({
                 value={invoice.shipment.shipmentNumber}
                 href={`/consignment/shipments/${invoice.shipment.id}`}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Payment History</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {invoice.payments.map((payment) => (
+                <div key={payment.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium">{formatCurrency(Number(payment.amount), "MYR")}</div>
+                    <Badge variant="secondary">{payment.paymentMethod}</Badge>
+                  </div>
+                  <Detail icon={<CalendarDays className="h-4 w-4" />} label="Date" value={formatDate(payment.paymentDate)} />
+                  {payment.referenceNumber && (
+                    <Detail icon={<FileText className="h-4 w-4" />} label="Reference" value={payment.referenceNumber} />
+                  )}
+                  <Detail
+                    icon={<User className="h-4 w-4" />}
+                    label="Recorded By"
+                    value={payment.createdBy.name || payment.createdBy.email}
+                  />
+                </div>
+              ))}
+              {invoice.payments.length === 0 && (
+                <Detail icon={<Wallet className="h-4 w-4" />} label="Payment" value="No payment recorded yet" />
+              )}
             </CardContent>
           </Card>
         </div>
