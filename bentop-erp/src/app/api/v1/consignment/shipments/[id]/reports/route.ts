@@ -10,6 +10,7 @@ import {
 } from "@/lib/consignment/finalize-report";
 import { prisma } from "@/lib/db";
 import { generateConsignmentReportNumber } from "@/lib/utils";
+import { canManageConsignment, canViewReports, forbiddenResponse } from "@/lib/permissions";
 import {
   consignmentReportCreateSchema,
   type ConsignmentReportCreateInput,
@@ -39,7 +40,7 @@ type ShipmentItemForReport = {
 };
 
 export function canCreateConsignmentReport(role: string | undefined) {
-  return role !== undefined && role !== "VIEWER";
+  return canManageConsignment(role);
 }
 
 export function buildShipmentReportListArgs(shipmentId: string) {
@@ -194,6 +195,11 @@ export async function GET(
       );
     }
 
+    const role = (session.user as unknown as { role?: string }).role;
+    if (!canViewReports(role)) {
+      return forbiddenResponse();
+    }
+
     const { id } = await params;
     const reports = await prisma.consignmentReport.findMany(
       buildShipmentReportListArgs(id),
@@ -220,10 +226,7 @@ export async function POST(
 
     const role = (session.user as unknown as { role?: string }).role;
     if (!canCreateConsignmentReport(role)) {
-      return Response.json(
-        { error: { code: "FORBIDDEN", message: "Read-only role" } },
-        { status: 403 },
-      );
+      return forbiddenResponse();
     }
 
     const userId = session.user.id;

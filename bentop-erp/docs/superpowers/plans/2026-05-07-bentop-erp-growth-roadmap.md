@@ -441,7 +441,7 @@ Expected: all pass.
 - Test: create `src/lib/permissions.test.ts`
 - Modify: API routes under `src/app/api/v1`
 
-- [ ] **Step 1: Define permission matrix**
+- [x] **Step 1: Define permission matrix**
 
 Roles:
 - `ADMIN`: full access.
@@ -451,7 +451,7 @@ Roles:
 - `PROMOTER`: assigned/temporary locations only.
 - `VIEWER`: read-only safe reports.
 
-- [ ] **Step 2: Add helper functions**
+- [x] **Step 2: Add helper functions**
 
 Create:
 - `canManageProducts(role)`
@@ -462,7 +462,7 @@ Create:
 - `canManageConsignment(role)`
 - `canViewReports(role)`
 
-- [ ] **Step 3: Apply route guards**
+- [x] **Step 3: Apply route guards**
 
 Apply to:
 - Products
@@ -473,7 +473,7 @@ Apply to:
 - Reports
 - Promoter APIs
 
-- [ ] **Step 4: Verify role tests**
+- [x] **Step 4: Verify role tests**
 
 Add tests proving:
 - Promoter cannot access unrelated stock.

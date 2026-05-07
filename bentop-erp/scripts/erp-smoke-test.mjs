@@ -18,6 +18,11 @@ const accounts = {
     email: process.env.ERP_SUPERVISOR_EMAIL ?? "supervisor@bentop.com",
     password: process.env.ERP_SUPERVISOR_PASSWORD ?? "supervisor123",
   },
+  viewer: {
+    label: "Viewer",
+    email: process.env.ERP_VIEWER_EMAIL ?? "viewer@bentop.com",
+    password: process.env.ERP_VIEWER_PASSWORD ?? "staff123",
+  },
 };
 
 const results = [];
@@ -77,6 +82,7 @@ async function main() {
   const admin = await login("admin", accounts.admin);
   const promoter = await login("promoter", accounts.promoter);
   const supervisor = await login("supervisor", accounts.supervisor);
+  const viewer = await login("viewer", accounts.viewer);
 
   await smokeApi(admin, "admin catalog APIs", [
     "/api/v1/categories",
@@ -152,6 +158,47 @@ async function main() {
     "/api/v1/transfers",
     "/api/v1/stock-levels?pageSize=5",
   ]);
+
+  await smokeApi(viewer, "viewer report APIs", [
+    "/api/v1/reports/sales",
+    "/api/v1/reports/inventory",
+    "/api/v1/reports/consignment",
+  ]);
+
+  await check("viewer cannot create products", async () => {
+    const response = await viewer.request("/api/v1/products", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assertStatus(response, [403]);
+  });
+
+  await check("viewer cannot create purchase orders", async () => {
+    const response = await viewer.request("/api/v1/purchase-orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assertStatus(response, [403]);
+  });
+
+  await check("promoter cannot use global reports", async () => {
+    const response = await promoter.request("/api/v1/reports/sales");
+    assertStatus(response, [403]);
+  });
+
+  await check("promoter cannot validate imports", async () => {
+    const response = await promoter.request("/api/v1/imports/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "locations",
+        csv: "name,type,address,contactPerson,contactPhone\nBlocked Location,WAREHOUSE,,,",
+      }),
+    });
+    assertStatus(response, [403]);
+  });
 
   await smokePages(admin, "admin pages", [
     "/",

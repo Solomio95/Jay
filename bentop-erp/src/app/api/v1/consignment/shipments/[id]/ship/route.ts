@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { consignmentShipSchema } from "@/lib/validators/consignment";
 import { handleApiError } from "@/lib/api-error";
+import { canManageConsignment, forbiddenResponse } from "@/lib/permissions";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,8 +16,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role === "VIEWER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Read-only role" } }, { status: 403 });
+    if (!canManageConsignment(role)) {
+      return forbiddenResponse();
     }
   
     const userId = session.user.id;

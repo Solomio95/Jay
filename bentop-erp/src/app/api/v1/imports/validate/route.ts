@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { parseCsv } from "@/lib/csv/csv";
 import { validateImportRows, type ImportType } from "@/lib/imports/validation";
+import { canManageImports, forbiddenResponse } from "@/lib/permissions";
 
 const allowedTypes = ["product-variants", "locations", "consignment-partners", "opening-stock"] as const;
 
@@ -14,8 +15,8 @@ export async function POST(request: NextRequest) {
     }
 
     const role = (session.user as unknown as { role: string }).role;
-    if (role !== "ADMIN" && role !== "MANAGER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Insufficient permissions" } }, { status: 403 });
+    if (!canManageImports(role)) {
+      return forbiddenResponse();
     }
 
     const body = await request.json();

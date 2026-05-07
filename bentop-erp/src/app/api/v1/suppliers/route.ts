@@ -3,10 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { supplierCreateSchema } from "@/lib/validators/purchase";
 import { handleApiError } from "@/lib/api-error";
-
-function canMutate(role: string) {
-  return role === "ADMIN" || role === "MANAGER";
-}
+import { canManagePurchases, forbiddenResponse } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,8 +33,8 @@ export async function POST(request: NextRequest) {
     }
 
     const role = (session.user as unknown as { role: string }).role;
-    if (!canMutate(role)) {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Insufficient permissions" } }, { status: 403 });
+    if (!canManagePurchases(role)) {
+      return forbiddenResponse();
     }
 
     const parsed = supplierCreateSchema.safeParse(await request.json());

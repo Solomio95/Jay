@@ -4,9 +4,10 @@ import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { summarizeConsignmentInvoicePaymentState } from "@/lib/consignment/invoice-payments";
 import { consignmentInvoicePaymentCreateSchema } from "@/lib/validators/invoice-payments";
+import { canManageConsignment, forbiddenResponse } from "@/lib/permissions";
 
 function canRecordPayment(role: string) {
-  return role === "ADMIN" || role === "MANAGER";
+  return canManageConsignment(role);
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const role = (session.user as unknown as { role: string }).role;
     if (!canRecordPayment(role)) {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Insufficient permissions" } }, { status: 403 });
+      return forbiddenResponse();
     }
 
     const parsed = consignmentInvoicePaymentCreateSchema.safeParse(await request.json());

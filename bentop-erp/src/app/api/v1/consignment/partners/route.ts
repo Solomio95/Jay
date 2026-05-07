@@ -7,9 +7,10 @@ import {
   consignmentPartnerUpsertSchema,
   type ConsignmentPartnerUpsertInput,
 } from "@/lib/validators/consignment";
+import { canManageConsignment, forbiddenResponse } from "@/lib/permissions";
 
 export function canMutateConsignmentPartners(role: string | undefined) {
-  return role === "ADMIN" || role === "MANAGER";
+  return canManageConsignment(role);
 }
 
 export function buildPartnerListArgs() {
@@ -149,10 +150,7 @@ export async function POST(request: NextRequest) {
 
     const role = (session.user as unknown as { role?: string }).role;
     if (!canMutateConsignmentPartners(role)) {
-      return Response.json(
-        { error: { code: "FORBIDDEN", message: "Insufficient permissions" } },
-        { status: 403 },
-      );
+      return forbiddenResponse();
     }
 
     const body = await request.json();

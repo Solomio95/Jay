@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
+import { canViewReports, forbiddenResponse } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,6 +12,11 @@ export async function GET(request: NextRequest) {
         { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
         { status: 401 }
       );
+    }
+
+    const role = (session.user as unknown as { role: string }).role;
+    if (!canViewReports(role)) {
+      return forbiddenResponse();
     }
   
     const sp = request.nextUrl.searchParams;

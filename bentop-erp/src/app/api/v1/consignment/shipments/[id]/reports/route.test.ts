@@ -11,9 +11,12 @@ import {
 import { consignmentReportCreateSchema } from "@/lib/validators/consignment";
 
 describe("consignment shipment report route helpers", () => {
-  it("allows authenticated non-viewer roles to create reports", () => {
+  it("allows only consignment managers to create reports", () => {
     assert.equal(canCreateConsignmentReport("ADMIN"), true);
     assert.equal(canCreateConsignmentReport("MANAGER"), true);
+    assert.equal(canCreateConsignmentReport("STAFF"), false);
+    assert.equal(canCreateConsignmentReport("SUPERVISOR"), false);
+    assert.equal(canCreateConsignmentReport("PROMOTER"), false);
     assert.equal(canCreateConsignmentReport("VIEWER"), false);
     assert.equal(canCreateConsignmentReport(undefined), false);
   });

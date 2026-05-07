@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { consignmentShipmentCreateSchema } from "@/lib/validators/consignment";
 import { generateConsignmentNumber } from "@/lib/utils";
 import { handleApiError } from "@/lib/api-error";
+import { canManageConsignment, canViewReports, forbiddenResponse } from "@/lib/permissions";
 
 type ShipmentPartnerFieldsInput = {
   partnerId?: string | null;
@@ -69,6 +70,11 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const role = (session.user as unknown as { role: string }).role;
+    if (!canViewReports(role) && !canManageConsignment(role)) {
+      return forbiddenResponse();
+    }
   
     const sp = request.nextUrl.searchParams;
     const search = sp.get("search")?.trim() ?? "";
@@ -128,8 +134,8 @@ export async function POST(request: NextRequest) {
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role === "VIEWER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Read-only role" } }, { status: 403 });
+    if (!canManageConsignment(role)) {
+      return forbiddenResponse();
     }
   
     const userId = session.user.id;
