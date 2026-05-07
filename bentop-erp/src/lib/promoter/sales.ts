@@ -4,6 +4,11 @@ import { getAllowedPromoterLocationIds, assertPromoterLocationAllowed } from "./
 import { generateOrderNumber } from "@/lib/utils";
 import type { PromoterSaleInput } from "@/lib/validators/promoter";
 import { calculatePromoterSaleLinePrices, type PromotionCandidate } from "./promotions";
+import {
+  assertEnoughAvailableStock,
+  calculateAvailableStock,
+  mergeRequestedQuantities,
+} from "@/lib/inventory/reservation";
 
 export async function createPromoterSale(input: {
   userId: string;
@@ -348,21 +353,26 @@ async function assertSufficientStock(input: {
   locationId: string;
   items: PromoterSaleInput["items"];
 }) {
-  for (const item of input.items) {
+  const requestedQuantities = mergeRequestedQuantities(input.items);
+
+  for (const [productVariantId, quantity] of requestedQuantities) {
     const aggregate = await prisma.stockLevel.findFirst({
       where: {
-        productVariantId: item.productVariantId,
+        productVariantId,
         locationId: input.locationId,
         batchId: null,
       },
     });
-    const available = (aggregate?.quantityOnHand ?? 0) - (aggregate?.quantityReserved ?? 0);
+    const available = calculateAvailableStock(
+      aggregate?.quantityOnHand ?? 0,
+      aggregate?.quantityReserved ?? 0,
+    );
 
-    if (available < item.quantity) {
-      throw new Error(
-        `INSUFFICIENT_STOCK:Only ${Math.max(0, available)} available for ${item.productVariantId}, requested ${item.quantity}`,
-      );
-    }
+    assertEnoughAvailableStock({
+      available,
+      requested: quantity,
+      itemLabel: productVariantId,
+    });
   }
 }
 

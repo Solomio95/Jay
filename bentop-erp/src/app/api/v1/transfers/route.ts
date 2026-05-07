@@ -5,6 +5,11 @@ import { transferCreateSchema } from "@/lib/validators/inventory";
 import { generateTransferNumber } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 import { handleApiError } from "@/lib/api-error";
+import {
+  assertEnoughAvailableStock,
+  calculateAvailableStock,
+  mergeRequestedQuantities,
+} from "@/lib/inventory/reservation";
 
 export async function GET(request: NextRequest) {
   try {
@@ -152,37 +157,13 @@ export async function POST(request: NextRequest) {
       );
     }
   
-    // Verify available stock at source
-    for (const item of data.items) {
-      const available = await prisma.stockLevel.aggregate({
-        where: item.batchId
-          ? {
-              productVariantId: item.productVariantId,
-              locationId: data.fromLocationId,
-              batchId: item.batchId,
-            }
-          : {
-              productVariantId: item.productVariantId,
-              locationId: data.fromLocationId,
-              batchId: { not: null },
-            },
-        _sum: { quantityOnHand: true },
-      });
-      const onHand = available._sum.quantityOnHand ?? 0;
-      if (onHand < item.quantity) {
-        return Response.json(
-          {
-            error: {
-              code: "INSUFFICIENT_STOCK",
-              message: `Only ${onHand} available at source for variant ${item.productVariantId}, requested ${item.quantity}`,
-            },
-          },
-          { status: 409 }
-        );
-      }
-    }
-  
     const transfer = await prisma.$transaction(async (tx) => {
+      await assertTransferStockAvailable({
+        tx,
+        fromLocationId: data.fromLocationId,
+        items: data.items,
+      });
+
       const created = await tx.stockTransfer.create({
         data: {
           transferNumber: generateTransferNumber(),
@@ -206,11 +187,10 @@ export async function POST(request: NextRequest) {
         },
       });
   
-      // Reserve stock at source: bump quantityReserved on aggregate rows
-      for (const item of data.items) {
+      for (const [productVariantId, quantity] of mergeRequestedQuantities(data.items)) {
         const aggregate = await tx.stockLevel.findFirst({
           where: {
-            productVariantId: item.productVariantId,
+            productVariantId,
             locationId: data.fromLocationId,
             batchId: null,
           },
@@ -218,7 +198,7 @@ export async function POST(request: NextRequest) {
         if (aggregate) {
           await tx.stockLevel.update({
             where: { id: aggregate.id },
-            data: { quantityReserved: { increment: item.quantity } },
+            data: { quantityReserved: { increment: quantity } },
           });
         }
       }
@@ -243,6 +223,46 @@ export async function POST(request: NextRequest) {
   
     return Response.json({ data: transfer }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("INSUFFICIENT_STOCK:")) {
+      return Response.json(
+        {
+          error: {
+            code: "INSUFFICIENT_STOCK",
+            message: error.message.slice("INSUFFICIENT_STOCK:".length),
+          },
+        },
+        { status: 409 },
+      );
+    }
+
     return handleApiError(error);
+  }
+}
+
+async function assertTransferStockAvailable(input: {
+  tx: Prisma.TransactionClient;
+  fromLocationId: string;
+  items: Array<{ productVariantId: string; quantity: number }>;
+}) {
+  const requestedQuantities = mergeRequestedQuantities(input.items);
+
+  for (const [productVariantId, quantity] of requestedQuantities) {
+    const aggregate = await input.tx.stockLevel.findFirst({
+      where: {
+        productVariantId,
+        locationId: input.fromLocationId,
+        batchId: null,
+      },
+    });
+    const available = calculateAvailableStock(
+      aggregate?.quantityOnHand ?? 0,
+      aggregate?.quantityReserved ?? 0,
+    );
+
+    assertEnoughAvailableStock({
+      available,
+      requested: quantity,
+      itemLabel: productVariantId,
+    });
   }
 }

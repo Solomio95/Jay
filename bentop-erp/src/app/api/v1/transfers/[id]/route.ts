@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { transferActionSchema } from "@/lib/validators/inventory";
 import { handleApiError } from "@/lib/api-error";
+import {
+  assertEnoughAvailableStock,
+  calculateAvailableStock,
+} from "@/lib/inventory/reservation";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -186,6 +190,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   
       // COMPLETE: actually move stock, create movements, release reservations
       for (const item of transfer.items) {
+        const sourceAgg = await tx.stockLevel.findFirst({
+          where: {
+            productVariantId: item.productVariantId,
+            locationId: transfer.fromLocationId,
+            batchId: null,
+          },
+        });
+        const available = calculateAvailableStock(
+          sourceAgg?.quantityOnHand ?? 0,
+          Math.max(0, (sourceAgg?.quantityReserved ?? 0) - item.quantity),
+        );
+
+        assertEnoughAvailableStock({
+          available,
+          requested: item.quantity,
+          itemLabel: item.productVariantId,
+        });
+
         let remaining = item.quantity;
   
         // FIFO deduct from source batches
@@ -260,15 +282,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   
           remaining -= take;
         }
+
+        if (remaining > 0) {
+          await tx.stockMovement.create({
+            data: {
+              productVariantId: item.productVariantId,
+              batchId: null,
+              fromLocationId: transfer.fromLocationId,
+              toLocationId: transfer.toLocationId,
+              movementType: "TRANSFER",
+              quantity: remaining,
+              referenceNumber: transfer.transferNumber,
+              performedById: userId,
+              approvedById: transfer.approvedById,
+            },
+          });
+        }
   
         // Adjust aggregate rows on both sides
-        const sourceAgg = await tx.stockLevel.findFirst({
-          where: {
-            productVariantId: item.productVariantId,
-            locationId: transfer.fromLocationId,
-            batchId: null,
-          },
-        });
         if (sourceAgg) {
           await tx.stockLevel.update({
             where: { id: sourceAgg.id },
@@ -331,6 +362,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   
     return Response.json({ data: result });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("INSUFFICIENT_STOCK:")) {
+      return Response.json(
+        {
+          error: {
+            code: "INSUFFICIENT_STOCK",
+            message: error.message.slice("INSUFFICIENT_STOCK:".length),
+          },
+        },
+        { status: 409 },
+      );
+    }
+
     return handleApiError(error);
   }
 }

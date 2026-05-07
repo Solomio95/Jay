@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type OrderStatus, type PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getAllowedPromoterLocationIds } from "./access";
 import type { PromoterReturnInput } from "@/lib/validators/promoter";
@@ -135,8 +135,70 @@ export async function createPromoterReturn(input: {
       },
     });
 
+    const returnSums = await tx.promoterReturn.groupBy({
+      by: ["orderItemId"],
+      where: { orderId: order.id },
+      _sum: { amount: true, quantity: true },
+    });
+    const returnedQuantity = returnSums.reduce(
+      (sum, item) => sum + (item._sum.quantity ?? 0),
+      0,
+    );
+    const returnedAmount = roundMoney(
+      returnSums.reduce((sum, item) => sum + Number(item._sum.amount ?? 0), 0),
+    );
+    const orderState = summarizePromoterReturnOrderState({
+      currentStatus: order.status,
+      totalQuantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      returnedQuantity,
+      totalAmount: Number(order.totalAmount),
+      returnedAmount,
+    });
+
+    if (order.status !== orderState.status || order.paymentStatus !== orderState.paymentStatus) {
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: orderState.status,
+          paymentStatus: orderState.paymentStatus,
+        },
+      });
+
+      if (order.status !== orderState.status) {
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            fromStatus: order.status,
+            toStatus: orderState.status,
+            changedById: input.userId,
+            reason: "Promoter return submitted",
+          },
+        });
+      }
+    }
+
     return promoterReturn;
   });
+}
+
+export function summarizePromoterReturnOrderState(input: {
+  currentStatus: OrderStatus;
+  totalQuantity: number;
+  returnedQuantity: number;
+  totalAmount: number;
+  returnedAmount: number;
+}): { status: OrderStatus; paymentStatus: PaymentStatus } {
+  const isFullyReturned =
+    input.totalQuantity > 0 && input.returnedQuantity >= input.totalQuantity;
+  const status = isFullyReturned ? "RETURNED" : input.currentStatus;
+  const paymentStatus =
+    input.returnedAmount >= input.totalAmount
+      ? "REFUNDED"
+      : input.returnedAmount > 0
+        ? "PARTIAL"
+        : "PAID";
+
+  return { status, paymentStatus };
 }
 
 function roundMoney(value: number) {

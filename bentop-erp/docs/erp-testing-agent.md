@@ -263,6 +263,19 @@ Use this checklist when you want a human to test the ERP. The automated smoke te
 - [ ] Test date:
 - [ ] Notes or issues found:
 
+### Phase 1 Stabilization Regression
+
+- [ ] Add the same sub SKU twice in one promoter sale and confirm stock validation uses the combined quantity.
+- [ ] Try selling a sub SKU where on-hand stock exists but reserved stock leaves no available stock, and confirm the sale is blocked.
+- [ ] Create a transfer request and confirm source stock becomes reserved.
+- [ ] Try creating another transfer for the same reserved stock and confirm it is blocked.
+- [ ] Approve and complete a transfer only after confirming the source still has enough stock.
+- [ ] Complete a partial promoter return and confirm the order remains active with partial payment state.
+- [ ] Complete a full promoter return and confirm the order becomes returned/refunded.
+- [ ] Open promoter sales history and confirm gross, returned, and net sales are correct.
+- [ ] Finalize a consignment report and open its invoice.
+- [ ] Open `/consignment/reports` and confirm gross, commission, and net totals match the finalized invoice amounts.
+
 ### Auth And Setup
 
 1. Start the server with `npm run dev`.
