@@ -124,6 +124,22 @@ async function main() {
     assert(json.data?.validRows === 1, "expected one valid import row");
   });
 
+  await check("admin import apply dry-run does not require confirmation", async () => {
+    const response = await admin.request("/api/v1/imports/apply", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "locations",
+        dryRun: true,
+        csv: "name,type,address,contactPerson,contactPhone\nDry Run Location,WAREHOUSE,,,",
+      }),
+    });
+    assertStatus(response, [200]);
+    const json = await response.json();
+    assert(json.data?.dryRun === true, "expected dry-run response");
+    assert(json.data?.validation?.validRows === 1, "expected one valid dry-run row");
+  });
+
   await smokeApi(promoter, "promoter APIs", [
     "/api/v1/promoter/context",
     "/api/v1/promoter/stock",

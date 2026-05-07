@@ -48,6 +48,7 @@ const schemas: Record<ImportType, z.ZodTypeAny> = {
 export function validateImportRows(type: ImportType, rows: Record<string, string>[]) {
   const schema = schemas[type];
   const errors: ImportValidationError[] = [];
+  const seen = new Map<string, number>();
 
   rows.forEach((row, index) => {
     const result = schema.safeParse(row);
@@ -56,6 +57,19 @@ export function validateImportRows(type: ImportType, rows: Record<string, string
         rowNumber: index + 2,
         messages: result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
       });
+    }
+
+    const key = uniqueRowKey(type, row);
+    if (key) {
+      const existing = seen.get(key);
+      if (existing !== undefined) {
+        errors.push({
+          rowNumber: index + 2,
+          messages: [`Duplicate ${key} already appears on row ${existing + 2}`],
+        });
+      } else {
+        seen.set(key, index);
+      }
     }
   });
 
@@ -66,6 +80,13 @@ export function validateImportRows(type: ImportType, rows: Record<string, string
     invalidRows: errors.length,
     errors,
   };
+}
+
+function uniqueRowKey(type: ImportType, row: Record<string, string>) {
+  if (type === "product-variants" && row.sku) return `sku ${row.sku}`;
+  if (type === "locations" && row.name) return `location ${row.name}`;
+  if (type === "consignment-partners" && row.name) return `partner ${row.name}`;
+  return "";
 }
 
 export function importTemplateHeaders(type: ImportType) {
