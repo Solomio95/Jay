@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, FileText, MapPin, Printer, User, Wallet } from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePaymentForm } from "@/components/consignment/invoice-payment-form";
 import { prisma } from "@/lib/db";
 import { buildConsignmentInvoiceDocument } from "@/lib/consignment/invoice-document";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -201,6 +202,11 @@ export default async function ConsignmentInvoiceDetailPage({
               <CardTitle className="text-base">Payment History</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              <InvoicePaymentForm
+                invoiceId={invoice.id}
+                outstandingAmount={document.outstandingAmount}
+                disabled={invoice.status === "VOID" || document.outstandingAmount <= 0}
+              />
               {invoice.payments.map((payment) => (
                 <div key={payment.id} className="rounded-md border p-3">
                   <div className="flex items-center justify-between gap-2">
