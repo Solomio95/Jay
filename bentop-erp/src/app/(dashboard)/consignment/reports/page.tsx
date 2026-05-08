@@ -1,13 +1,12 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { BarChart3, CalendarDays, Download, Receipt, RotateCcw, Wallet } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import {
-  TrendingUp,
-  DollarSign,
-  Boxes,
-  Truck,
-  Users,
-  BarChart3,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -16,278 +15,237 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { getConsignmentReport } from "@/lib/reports/consignment";
 
-export default async function ConsignmentReportsPage() {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-  const shipments = await prisma.consignmentShipment.findMany({
-    where: { createdAt: { gte: ninetyDaysAgo } },
-    include: {
-      toLocation: { select: { id: true, name: true } },
-      items: {
-        select: {
-          quantityShipped: true,
-          quantitySold: true,
-          quantityReturned: true,
-          unitPrice: true,
-          costAtShipment: true,
+const REPORT_STATUS_COLOR: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
+  DRAFT: "secondary",
+  FINALIZED: "success",
+  CANCELLED: "destructive",
+};
+
+export default async function ConsignmentReportsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const filters = {
+    days: numberParam(params, "days") ?? 90,
+    from: getParam(params, "from"),
+    to: getParam(params, "to"),
+    partnerId: getParam(params, "partnerId"),
+    locationId: getParam(params, "locationId"),
+    productId: getParam(params, "productId"),
+    productVariantId: getParam(params, "productVariantId"),
+  };
+  const recentReportWhere = toConsignmentReportWhere(filters);
+
+  const [report, partners, locations, products, variants, recentReports] = await Promise.all([
+    getConsignmentReport(filters),
+    prisma.consignmentPartner.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.location.findMany({ where: { isActive: true, type: "CONSIGNMENT" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { isActive: true }, select: { id: true, name: true, skuPrefix: true }, orderBy: { name: "asc" } }),
+    prisma.productVariant.findMany({ where: { isActive: true }, select: { id: true, sku: true }, orderBy: { sku: "asc" }, take: 500 }),
+    prisma.consignmentReport.findMany({
+      where: recentReportWhere,
+      include: {
+        partner: { select: { name: true } },
+        shipment: { select: { id: true, shipmentNumber: true } },
+        lines: {
+          select: {
+            quantitySold: true,
+            quantityReturned: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+          },
         },
       },
+      orderBy: [{ periodEnd: "desc" }, { createdAt: "desc" }],
+      take: 100,
+    }),
+  ]);
+  const exportHref = `/api/v1/exports/reports/consignment${toQueryString({ ...filters, days: String(filters.days) })}`;
+  const recentReportTotals = recentReports.reduce(
+    (sum, consignmentReport) => {
+      const sold = consignmentReport.lines.reduce((lineSum, line) => lineSum + line.quantitySold, 0);
+      const returned = consignmentReport.lines.reduce((lineSum, line) => lineSum + line.quantityReturned, 0);
+      return {
+        reports: sum.reports + 1,
+        sold: sum.sold + sold,
+        returned: sum.returned + returned,
+      };
     },
-  });
-
-  // Per-partner aggregation
-  const byPartner: Record<
-    string,
-    {
-      partnerName: string;
-      locationName: string;
-      shipments: number;
-      unitsShipped: number;
-      unitsSold: number;
-      unitsReturned: number;
-      revenueGross: number;
-      commissionTotal: number;
-      costTotal: number;
-    }
-  > = {};
-
-  let totalShipped = 0;
-  let totalSold = 0;
-  let totalReturned = 0;
-  let totalRevenueGross = 0;
-  let totalCommission = 0;
-  let totalCost = 0;
-
-  for (const s of shipments) {
-    const key = `${s.partnerName}__${s.toLocationId}`;
-    const entry = byPartner[key] ?? {
-      partnerName: s.partnerName,
-      locationName: s.toLocation.name,
-      shipments: 0,
-      unitsShipped: 0,
-      unitsSold: 0,
-      unitsReturned: 0,
-      revenueGross: 0,
-      commissionTotal: 0,
-      costTotal: 0,
-    };
-    entry.shipments += 1;
-
-    for (const i of s.items) {
-      const rev = i.quantitySold * Number(i.unitPrice);
-      const com = (rev * Number(s.commissionRate)) / 100;
-      const cost = i.quantitySold * Number(i.costAtShipment);
-
-      entry.unitsShipped += i.quantityShipped;
-      entry.unitsSold += i.quantitySold;
-      entry.unitsReturned += i.quantityReturned;
-      entry.revenueGross += rev;
-      entry.commissionTotal += com;
-      entry.costTotal += cost;
-
-      totalShipped += i.quantityShipped;
-      totalSold += i.quantitySold;
-      totalReturned += i.quantityReturned;
-      totalRevenueGross += rev;
-      totalCommission += com;
-      totalCost += cost;
-    }
-
-    byPartner[key] = entry;
-  }
-
-  const sellThroughRate = totalShipped > 0 ? (totalSold / totalShipped) * 100 : 0;
-  const netRevenue = totalRevenueGross - totalCommission;
-  const grossProfit = netRevenue - totalCost;
-
-  // Status breakdown
-  const statusCounts: Record<string, number> = {};
-  for (const s of shipments) {
-    statusCounts[s.status] = (statusCounts[s.status] ?? 0) + 1;
-  }
-
-  const partnerRows = Object.values(byPartner)
-    .map((p) => ({
-      ...p,
-      sellThrough: p.unitsShipped > 0 ? (p.unitsSold / p.unitsShipped) * 100 : 0,
-      netRevenue: p.revenueGross - p.commissionTotal,
-      grossProfit: p.revenueGross - p.commissionTotal - p.costTotal,
-    }))
-    .sort((a, b) => b.revenueGross - a.revenueGross);
+    { reports: 0, sold: 0, returned: 0 },
+  );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Consignment Reports</h2>
-        <p className="text-muted-foreground">
-          Partner performance, sell-through rates, and settlement summary (last 90 days).
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Sales And Return Reports</h2>
+          <p className="text-muted-foreground">Consignment sell-through, returns, commission, invoice payable, and outstanding payment.</p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <a href={exportHref}><Download className="mr-2 h-4 w-4" />Report CSV</a>
+        </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Truck className="h-3.5 w-3.5" /> Shipments
-            </div>
-            <div className="text-2xl font-bold mt-1">{shipments.length}</div>
-            <div className="text-xs text-muted-foreground">total consignments</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Boxes className="h-3.5 w-3.5" /> Units Shipped
-            </div>
-            <div className="text-2xl font-bold mt-1">{totalShipped.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground">
-              {totalSold.toLocaleString()} sold
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <BarChart3 className="h-3.5 w-3.5" /> Sell-Through
-            </div>
-            <div className="text-2xl font-bold mt-1">{sellThroughRate.toFixed(1)}%</div>
-            <div className="text-xs text-muted-foreground">{totalReturned} returned</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <DollarSign className="h-3.5 w-3.5" /> Gross Revenue
-            </div>
-            <div className="text-2xl font-bold mt-1">
-              {formatCurrency(totalRevenueGross, "MYR")}
-            </div>
-            <div className="text-xs text-muted-foreground">before commission</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <TrendingUp className="h-3.5 w-3.5" /> Net Revenue
-            </div>
-            <div className="text-2xl font-bold mt-1">
-              {formatCurrency(netRevenue, "MYR")}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {formatCurrency(totalCommission, "MYR")} commission
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Users className="h-3.5 w-3.5" /> Partners
-            </div>
-            <div className="text-2xl font-bold mt-1">{partnerRows.length}</div>
-            <div className="text-xs text-muted-foreground">active consignees</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Status breakdown */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Shipment Status</CardTitle>
+          <CardTitle className="text-base">Filters</CardTitle>
+          <CardDescription>Filter by report period, partner, location, parent SKU, or sub SKU.</CardDescription>
         </CardHeader>
         <CardContent>
-          {Object.keys(statusCounts).length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No data.</p>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {Object.entries(statusCounts)
-                .sort(([, a], [, b]) => b - a)
-                .map(([status, count]) => (
-                  <div key={status} className="border rounded-lg p-3 min-w-[120px]">
-                    <div className="text-xs text-muted-foreground uppercase">
-                      {status.replace(/_/g, " ")}
-                    </div>
-                    <div className="text-xl font-bold mt-1">{count}</div>
-                  </div>
-                ))}
-            </div>
-          )}
+          <form className="grid gap-3 md:grid-cols-4 lg:grid-cols-8">
+            <Input name="from" type="date" defaultValue={filters.from ?? ""} />
+            <Input name="to" type="date" defaultValue={filters.to ?? ""} />
+            <Input name="days" type="number" min="1" defaultValue={String(filters.days)} />
+            <select name="partnerId" defaultValue={filters.partnerId ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All partners</option>
+              {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
+            </select>
+            <select name="locationId" defaultValue={filters.locationId ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All locations</option>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <select name="productId" defaultValue={filters.productId ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All parent SKUs</option>
+              {products.map((product) => <option key={product.id} value={product.id}>{product.skuPrefix} - {product.name}</option>)}
+            </select>
+            <select name="productVariantId" defaultValue={filters.productVariantId ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All sub SKUs</option>
+              {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.sku}</option>)}
+            </select>
+            <Button type="submit">Apply</Button>
+          </form>
         </CardContent>
       </Card>
 
-      {/* Partner performance table */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Metric icon={<Receipt className="h-3.5 w-3.5" />} label="Gross" value={formatCurrency(report.summary.totalRevenueGross, "MYR")} />
+        <Metric icon={<Wallet className="h-3.5 w-3.5" />} label="Commission" value={formatCurrency(report.summary.totalCommission, "MYR")} />
+        <Metric icon={<Wallet className="h-3.5 w-3.5" />} label="Net Payable" value={formatCurrency(report.summary.netRevenue, "MYR")} />
+        <Metric icon={<Receipt className="h-3.5 w-3.5" />} label="Outstanding" value={formatCurrency(report.summary.outstandingAmount, "MYR")} />
+        <Metric icon={<RotateCcw className="h-3.5 w-3.5" />} label="Returned" value={report.summary.totalReturned.toLocaleString()} />
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">By Partner</CardTitle></CardHeader>
+        <CardContent>
+          <ReportTable
+            headers={["Partner", "Location", "Shipped", "Sold", "Returned", "Gross", "Commission", "Net", "Outstanding"]}
+            rows={report.byPartner.map((row) => [
+              row.partnerName,
+              row.locationName,
+              row.unitsShipped,
+              row.unitsSold,
+              row.unitsReturned,
+              formatCurrency(row.revenueGross, "MYR"),
+              formatCurrency(row.commissionTotal, "MYR"),
+              formatCurrency(row.netRevenue, "MYR"),
+              formatCurrency(row.outstandingAmount, "MYR"),
+            ])}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">By Product</CardTitle></CardHeader>
+        <CardContent>
+          <ReportTable
+            headers={["Product", "SKU", "Shipped", "Sold", "Returned", "Gross", "Net"]}
+            rows={report.byProduct.map((row) => [
+              row.name,
+              row.sku,
+              row.shipped,
+              row.sold,
+              row.returned,
+              formatCurrency(row.gross, "MYR"),
+              formatCurrency(row.net, "MYR"),
+            ])}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Partner Performance</CardTitle>
-          <CardDescription>
-            Revenue, sell-through, and profitability by consignment partner
-          </CardDescription>
+          <CardTitle className="text-base">Dated Report Register</CardTitle>
+          <CardDescription>Invoice-ready sales and return reports recorded by partner and period.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {partnerRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No data.</p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <InlineStat icon={<CalendarDays className="h-3.5 w-3.5" />} label="Reports" value={recentReportTotals.reports.toLocaleString()} />
+            <InlineStat icon={<BarChart3 className="h-3.5 w-3.5" />} label="Sold Units" value={recentReportTotals.sold.toLocaleString()} />
+            <InlineStat icon={<RotateCcw className="h-3.5 w-3.5" />} label="Returned" value={recentReportTotals.returned.toLocaleString()} />
+          </div>
+          {recentReports.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No dated reports match these filters.</p>
           ) : (
-            <div className="border rounded-lg overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Report</TableHead>
+                    <TableHead>Period</TableHead>
                     <TableHead>Partner</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="text-right">Shipments</TableHead>
-                    <TableHead className="text-right">Shipped</TableHead>
+                    <TableHead>Shipment</TableHead>
                     <TableHead className="text-right">Sold</TableHead>
                     <TableHead className="text-right">Returned</TableHead>
-                    <TableHead className="text-right">Sell-Through</TableHead>
-                    <TableHead className="text-right">Gross Rev.</TableHead>
+                    <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Net to Bentop</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
+                    <TableHead className="text-right">Net Invoice</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {partnerRows.map((p) => (
-                    <TableRow key={`${p.partnerName}__${p.locationName}`}>
-                      <TableCell className="font-medium">{p.partnerName}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {p.locationName}
-                      </TableCell>
-                      <TableCell className="text-right">{p.shipments}</TableCell>
-                      <TableCell className="text-right">{p.unitsShipped}</TableCell>
-                      <TableCell className="text-right">{p.unitsSold}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {p.unitsReturned}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          variant={
-                            p.sellThrough >= 70
-                              ? "success"
-                              : p.sellThrough >= 40
-                                ? "warning"
-                                : "destructive"
-                          }
-                          className="text-xs"
-                        >
-                          {p.sellThrough.toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(p.revenueGross, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right text-amber-700">
-                        {formatCurrency(p.commissionTotal, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.netRevenue, "MYR")}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.grossProfit, "MYR")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {recentReports.map((consignmentReport) => {
+                    const sold = consignmentReport.lines.reduce((sum, line) => sum + line.quantitySold, 0);
+                    const returned = consignmentReport.lines.reduce((sum, line) => sum + line.quantityReturned, 0);
+                    const invoice = consignmentReport.invoices[0];
+
+                    return (
+                      <TableRow key={consignmentReport.id}>
+                        <TableCell className="font-mono text-xs">{consignmentReport.reportNumber}</TableCell>
+                        <TableCell className="text-xs">
+                          {formatDate(consignmentReport.periodStart)} to {formatDate(consignmentReport.periodEnd)}
+                        </TableCell>
+                        <TableCell>{consignmentReport.partner.name}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <Link href={`/consignment/shipments/${consignmentReport.shipment.id}`} className="hover:underline">
+                            {consignmentReport.shipment.shipmentNumber}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right">{sold}</TableCell>
+                        <TableCell className="text-right">{returned}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(Number(consignmentReport.grossAmount), "MYR")}</TableCell>
+                        <TableCell className="text-right text-amber-700">
+                          {formatCurrency(Number(consignmentReport.commissionAmount), "MYR")}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(Number(consignmentReport.netAmount), "MYR")}
+                        </TableCell>
+                        <TableCell>
+                          {invoice ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/consignment/invoices/${invoice.id}`}>{invoice.invoiceNumber}</Link>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Not issued</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={REPORT_STATUS_COLOR[consignmentReport.status]}>{consignmentReport.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -296,4 +254,97 @@ export default async function ConsignmentReportsPage() {
       </Card>
     </div>
   );
+}
+
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">{icon} {label}</div>
+        <div className="text-2xl font-bold mt-1">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InlineStat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-md border px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon} {label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function ReportTable({ headers, rows }: { headers: string[]; rows: Array<Array<string | number>> }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-4">No data.</p>;
+  }
+
+  return (
+    <div className="border rounded-lg overflow-x-auto">
+      <Table>
+        <TableHeader><TableRow>{headers.map((header) => <TableHead key={header}>{header}</TableHead>)}</TableRow></TableHeader>
+        <TableBody>
+          {rows.map((row, index) => (
+            <TableRow key={index}>{row.map((cell, cellIndex) => <TableCell key={cellIndex}>{cell}</TableCell>)}</TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function getParam(params: Awaited<PageProps["searchParams"]>, key: string) {
+  const value = params?.[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function numberParam(params: Awaited<PageProps["searchParams"]>, key: string) {
+  const value = getParam(params, key);
+  if (!value) return undefined;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toConsignmentReportWhere(filters: {
+  from?: string;
+  to?: string;
+  partnerId?: string;
+  locationId?: string;
+  productId?: string;
+  productVariantId?: string;
+}): Prisma.ConsignmentReportWhereInput {
+  const from = filters.from ? startOfDay(filters.from) : undefined;
+  const to = filters.to ? endOfDay(filters.to) : undefined;
+  const lineFilter = filters.productVariantId
+    ? { shipmentItem: { productVariantId: filters.productVariantId } }
+    : filters.productId
+      ? { shipmentItem: { productVariant: { productId: filters.productId } } }
+      : undefined;
+
+  return {
+    ...(filters.partnerId ? { partnerId: filters.partnerId } : {}),
+    ...(filters.locationId ? { shipment: { toLocationId: filters.locationId } } : {}),
+    ...(from ? { periodEnd: { gte: from } } : {}),
+    ...(to ? { periodStart: { lte: to } } : {}),
+    ...(lineFilter ? { lines: { some: lineFilter } } : {}),
+  };
+}
+
+function startOfDay(value: string) {
+  return new Date(`${value}T00:00:00.000`);
+}
+
+function endOfDay(value: string) {
+  return new Date(`${value}T23:59:59.999`);
+}
+
+function toQueryString(values: Record<string, string | number | null | undefined>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }

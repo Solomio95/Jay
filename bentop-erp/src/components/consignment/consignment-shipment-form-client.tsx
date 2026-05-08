@@ -26,6 +26,23 @@ import { VariantPicker, type VariantOption } from "@/components/inventory/varian
 import { formatCurrency } from "@/lib/utils";
 
 type Location = { id: string; name: string; type: string };
+type PartnerTier = {
+  id: string;
+  name: string;
+  minPrice: number;
+  maxPrice: number | null;
+  commissionRate: number;
+  sortOrder: number;
+};
+type Partner = {
+  id: string;
+  name: string;
+  contactPerson: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  locationId: string | null;
+  commissionTiers: PartnerTier[];
+};
 
 type Line = {
   variant: VariantOption;
@@ -34,7 +51,52 @@ type Line = {
   availableAtSource: number;
 };
 
-export function ConsignmentShipmentFormClient({ locations }: { locations: Location[] }) {
+type ProductSummaryLine = {
+  variant: Pick<VariantOption, "productId" | "productName">;
+  quantity: number;
+  unitPrice: number;
+};
+
+export function buildProductShipmentSummary(lines: ProductSummaryLine[]) {
+  const summary = new Map<
+    string,
+    { productId: string; productName: string; quantity: number; value: number }
+  >();
+
+  for (const line of lines) {
+    const existing = summary.get(line.variant.productId) ?? {
+      productId: line.variant.productId,
+      productName: line.variant.productName,
+      quantity: 0,
+      value: 0,
+    };
+    existing.quantity += line.quantity;
+    existing.value += line.quantity * line.unitPrice;
+    summary.set(line.variant.productId, existing);
+  }
+
+  return Array.from(summary.values());
+}
+
+export function buildPartnerSelectionState(
+  partner: Pick<Partner, "id" | "name" | "locationId">,
+  currentToLocationId: string,
+) {
+  return {
+    partnerId: partner.id,
+    partnerName: partner.name,
+    toLocationId: partner.locationId ?? currentToLocationId,
+    isConsigneeLocked: partner.locationId !== null,
+  };
+}
+
+export function ConsignmentShipmentFormClient({
+  locations,
+  partners,
+}: {
+  locations: Location[];
+  partners: Partner[];
+}) {
   const router = useRouter();
 
   const sourceLocations = locations.filter((l) => l.type !== "CONSIGNMENT");
@@ -42,6 +104,7 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
 
   const [fromLocationId, setFromLocationId] = useState(sourceLocations[0]?.id || "");
   const [toLocationId, setToLocationId] = useState(consigneeLocations[0]?.id || "");
+  const [partnerId, setPartnerId] = useState<string | null>(null);
   const [partnerName, setPartnerName] = useState("");
   const [partnerContact, setPartnerContact] = useState("");
   const [commissionRate, setCommissionRate] = useState("0");
@@ -49,6 +112,8 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
   const [lines, setLines] = useState<Line[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const selectedPartner = partners.find((p) => p.id === partnerId) ?? null;
+  const isConsigneeLocked = selectedPartner?.locationId != null;
 
   const addLine = async (v: VariantOption) => {
     if (!fromLocationId) return;
@@ -76,16 +141,32 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
   };
 
   const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const productSummary = buildProductShipmentSummary(lines);
   const overAllocated = lines.some((l) => l.quantity > l.availableAtSource);
   const baseValid =
     fromLocationId &&
     toLocationId &&
     fromLocationId !== toLocationId &&
-    partnerName.trim().length > 0 &&
+    (partnerId || partnerName.trim().length > 0) &&
     lines.length > 0 &&
     lines.every((l) => l.quantity > 0 && l.unitPrice >= 0);
   const canShip = baseValid && !overAllocated;
   const canDraft = baseValid;
+
+  const selectPartner = (value: string) => {
+    if (value === "_manual") {
+      setPartnerId(null);
+      return;
+    }
+
+    const partner = partners.find((p) => p.id === value);
+    if (!partner) return;
+
+    const next = buildPartnerSelectionState(partner, toLocationId);
+    setPartnerId(next.partnerId);
+    setPartnerName(next.partnerName);
+    setToLocationId(next.toLocationId);
+  };
 
   const submit = async (ship: boolean) => {
     setLoading(true);
@@ -97,6 +178,7 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
         body: JSON.stringify({
           fromLocationId,
           toLocationId,
+          partnerId: partnerId || undefined,
           partnerName: partnerName.trim(),
           partnerContact: partnerContact.trim() || undefined,
           commissionRate: Number(commissionRate) || 0,
@@ -149,7 +231,11 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
         </div>
         <div className="space-y-2">
           <Label>Consignee *</Label>
-          <Select value={toLocationId} onValueChange={setToLocationId}>
+          <Select
+            value={toLocationId}
+            onValueChange={setToLocationId}
+            disabled={isConsigneeLocked}
+          >
             <SelectTrigger><SelectValue placeholder="Consignee location" /></SelectTrigger>
             <SelectContent>
               {consigneeLocations.length === 0 ? (
@@ -170,11 +256,26 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
+          <Label>Registered Partner</Label>
+          <Select value={partnerId ?? "_manual"} onValueChange={selectPartner}>
+            <SelectTrigger><SelectValue placeholder="Select partner" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_manual">Manual entry</SelectItem>
+              {partners.map((partner) => (
+                <SelectItem key={partner.id} value={partner.id}>
+                  {partner.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
           <Label>Partner Name *</Label>
           <Input
             value={partnerName}
             onChange={(e) => setPartnerName(e.target.value)}
             placeholder="e.g. Boutique Seremban"
+            disabled={partnerId !== null}
           />
         </div>
         <div className="space-y-2">
@@ -214,7 +315,33 @@ export function ConsignmentShipmentFormClient({ locations }: { locations: Locati
       </div>
 
       {lines.length > 0 && (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-hidden">
+          <div className="border-b bg-muted/30 px-4 py-3">
+            <div className="text-sm font-medium">Product Summary</div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-right">Value</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {productSummary.map((line) => (
+                <TableRow key={line.productId}>
+                  <TableCell className="font-medium">{line.productName}</TableCell>
+                  <TableCell className="text-right">{line.quantity}</TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(line.value, "MYR")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="border-t bg-muted/30 px-4 py-3">
+            <div className="text-sm font-medium">Shipment Lines</div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

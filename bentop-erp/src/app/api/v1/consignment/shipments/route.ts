@@ -5,6 +5,61 @@ import { auth } from "@/lib/auth";
 import { consignmentShipmentCreateSchema } from "@/lib/validators/consignment";
 import { generateConsignmentNumber } from "@/lib/utils";
 import { handleApiError } from "@/lib/api-error";
+import { canManageConsignment, canViewReports, forbiddenResponse } from "@/lib/permissions";
+
+type ShipmentPartnerFieldsInput = {
+  partnerId?: string | null;
+  partnerName?: string | null;
+};
+
+type ShipmentPartnerIdentity = {
+  id: string;
+  name: string;
+  locationId?: string | null;
+};
+
+export function buildActiveShipmentPartnerArgs(partnerId: string) {
+  return {
+    where: { id: partnerId, isActive: true },
+    include: {
+      commissionTiers: {
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+  } satisfies Prisma.ConsignmentPartnerFindFirstArgs;
+}
+
+export function buildShipmentPartnerCreateFields(
+  data: ShipmentPartnerFieldsInput,
+  partner?: ShipmentPartnerIdentity | null,
+) {
+  if (partner) {
+    return {
+      partnerId: partner.id,
+      partnerName: partner.name,
+    };
+  }
+
+  return {
+    partnerId: null,
+    partnerName: data.partnerName ?? "",
+  };
+}
+
+export function getPartnerLocationValidationError(
+  toLocationId: string,
+  partner?: ShipmentPartnerIdentity | null,
+) {
+  if (!partner?.locationId || partner.locationId === toLocationId) {
+    return null;
+  }
+
+  return {
+    code: "VALIDATION_ERROR",
+    message: "Selected partner must match the consignee location",
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +69,11 @@ export async function GET(request: NextRequest) {
         { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
         { status: 401 }
       );
+    }
+
+    const role = (session.user as unknown as { role: string }).role;
+    if (!canViewReports(role) && !canManageConsignment(role)) {
+      return forbiddenResponse();
     }
   
     const sp = request.nextUrl.searchParams;
@@ -74,8 +134,8 @@ export async function POST(request: NextRequest) {
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role === "VIEWER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Read-only role" } }, { status: 403 });
+    if (!canManageConsignment(role)) {
+      return forbiddenResponse();
     }
   
     const userId = session.user.id;
@@ -90,6 +150,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const data = parsed.data;
+    const selectedPartnerId = data.partnerId?.trim() || null;
   
     if (data.fromLocationId === data.toLocationId) {
       return Response.json(
@@ -114,6 +175,24 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const selectedPartner = selectedPartnerId
+      ? await prisma.consignmentPartner.findFirst(buildActiveShipmentPartnerArgs(selectedPartnerId))
+      : null;
+    if (selectedPartnerId && !selectedPartner) {
+      return Response.json(
+        { error: { code: "NOT_FOUND", message: "Consignment partner not found" } },
+        { status: 404 },
+      );
+    }
+    const partnerLocationError = getPartnerLocationValidationError(
+      data.toLocationId,
+      selectedPartner,
+    );
+    if (partnerLocationError) {
+      return Response.json({ error: partnerLocationError }, { status: 400 });
+    }
+    const shipmentPartner = buildShipmentPartnerCreateFields(data, selectedPartner);
   
     const variantIds = [...new Set(data.items.map((i) => i.productVariantId))];
     const variants = await prisma.productVariant.findMany({
@@ -136,7 +215,7 @@ export async function POST(request: NextRequest) {
           },
           _sum: { quantityOnHand: true },
         });
-        const onHand = agg._sum.quantityOnHand ?? 0;
+        let onHand = agg._sum.quantityOnHand ?? 0;
         const aggRow = await prisma.stockLevel.findFirst({
           where: {
             productVariantId: item.productVariantId,
@@ -144,6 +223,9 @@ export async function POST(request: NextRequest) {
             batchId: null,
           },
         });
+        if (onHand === 0 && !item.batchId) {
+          onHand = aggRow?.quantityOnHand ?? 0;
+        }
         const reserved = aggRow?.quantityReserved ?? 0;
         const availableForSale = onHand - reserved;
         if (availableForSale < item.quantityShipped) {
@@ -170,7 +252,8 @@ export async function POST(request: NextRequest) {
           shipmentNumber,
           fromLocationId: data.fromLocationId,
           toLocationId: data.toLocationId,
-          partnerName: data.partnerName,
+          partnerId: shipmentPartner.partnerId,
+          partnerName: shipmentPartner.partnerName,
           partnerContact: data.partnerContact ?? null,
           commissionRate: new Prisma.Decimal(data.commissionRate ?? 0),
           status: initialStatus,
@@ -216,6 +299,63 @@ export async function POST(request: NextRequest) {
             include: { batch: true },
             orderBy: { batch: { productionDate: "asc" } },
           });
+
+          if (sourceRows.length === 0 && !item.batchId) {
+            const sourceAgg = await tx.stockLevel.findFirst({
+              where: {
+                productVariantId: item.productVariantId,
+                locationId: data.fromLocationId,
+                batchId: null,
+              },
+            });
+
+            if (!sourceAgg || sourceAgg.quantityOnHand < item.quantityShipped) {
+              throw new Error(`Insufficient aggregate stock for ${item.productVariantId}`);
+            }
+
+            await tx.stockLevel.update({
+              where: { id: sourceAgg.id },
+              data: { quantityOnHand: { decrement: item.quantityShipped } },
+            });
+
+            const destAgg = await tx.stockLevel.findFirst({
+              where: {
+                productVariantId: item.productVariantId,
+                locationId: data.toLocationId,
+                batchId: null,
+              },
+            });
+            if (destAgg) {
+              await tx.stockLevel.update({
+                where: { id: destAgg.id },
+                data: { quantityOnHand: { increment: item.quantityShipped } },
+              });
+            } else {
+              await tx.stockLevel.create({
+                data: {
+                  productVariantId: item.productVariantId,
+                  locationId: data.toLocationId,
+                  batchId: null,
+                  quantityOnHand: item.quantityShipped,
+                },
+              });
+            }
+
+            await tx.stockMovement.create({
+              data: {
+                productVariantId: item.productVariantId,
+                batchId: null,
+                fromLocationId: data.fromLocationId,
+                toLocationId: data.toLocationId,
+                movementType: "CONSIGNMENT_OUT",
+                quantity: item.quantityShipped,
+                referenceNumber: shipmentNumber,
+                performedById: userId,
+              },
+            });
+
+            continue;
+          }
   
           for (const row of sourceRows) {
             if (remaining <= 0) break;

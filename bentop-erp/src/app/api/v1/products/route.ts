@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { productCreateSchema } from "@/lib/validators/product";
 import { generateSlug } from "@/lib/sku";
 import { handleApiError } from "@/lib/api-error";
+import { canManageProducts, forbiddenResponse } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,8 +82,8 @@ export async function POST(request: NextRequest) {
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role !== "ADMIN" && role !== "MANAGER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Insufficient permissions" } }, { status: 403 });
+    if (!canManageProducts(role)) {
+      return forbiddenResponse();
     }
   
     const body = await request.json();

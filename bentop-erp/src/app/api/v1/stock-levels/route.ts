@@ -4,6 +4,12 @@ import { auth } from "@/lib/auth";
 import { reorderPointSchema } from "@/lib/validators/inventory";
 import type { Prisma } from "@prisma/client";
 import { handleApiError } from "@/lib/api-error";
+import {
+  canManageStock,
+  canViewLocationStock,
+  forbiddenResponse,
+  stockLocationScopeForUser,
+} from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +36,47 @@ export async function GET(request: NextRequest) {
     if (productVariantId) where.productVariantId = productVariantId;
     if (productId) where.productVariant = { productId };
     if (outOfStockOnly) where.quantityOnHand = { lte: 0 };
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        role: true,
+        defaultLocationId: true,
+        supervisedLocations: { select: { id: true } },
+        temporaryLocations: {
+          where: {
+            startsAt: { lte: new Date() },
+            endsAt: { gte: new Date() },
+          },
+          select: { locationId: true },
+        },
+      },
+    });
+    if (!user) {
+      return Response.json(
+        { error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        { status: 401 }
+      );
+    }
+
+    const permissionUser = {
+      role: user.role,
+      defaultLocationId: user.defaultLocationId,
+      supervisedLocationIds: user.supervisedLocations.map((location) => location.id),
+      temporaryLocationIds: user.temporaryLocations.map((assignment) => assignment.locationId),
+    };
+
+    if (locationId && !canViewLocationStock(permissionUser, locationId)) {
+      return forbiddenResponse();
+    }
+
+    if (!locationId) {
+      const locationScope = stockLocationScopeForUser(permissionUser);
+      if (locationScope !== "all") {
+        if (locationScope.length === 0) return forbiddenResponse();
+        where.locationId = { in: [...locationScope] };
+      }
+    }
   
     if (search) {
       where.productVariant = {
@@ -88,8 +135,8 @@ export async function PATCH(request: NextRequest) {
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role !== "ADMIN" && role !== "MANAGER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Insufficient permissions" } }, { status: 403 });
+    if (!canManageStock(role)) {
+      return forbiddenResponse();
     }
   
     const body = await request.json();

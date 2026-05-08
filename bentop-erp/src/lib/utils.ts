@@ -77,3 +77,31 @@ export function generateConsignmentNumber(): string {
   const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
   return `CN-${dateStr}-${seq}`;
 }
+
+export function generateConsignmentReportNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `CR-${dateStr}-${seq}`;
+}
+
+export function generateConsignmentInvoiceNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `CI-${dateStr}-${seq}`;
+}
+
+export function generatePurchaseOrderNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `PO-${dateStr}-${seq}`;
+}
+
+export function generatePurchaseReceiptNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
+  return `PR-${dateStr}-${seq}`;
+}

@@ -11,6 +11,7 @@ export type VariantOption = {
   color: string;
   colorHex: string | null;
   barcode: string | null;
+  sellingPriceMyr: number;
   productId: string;
   productName: string;
   productSkuPrefix: string;

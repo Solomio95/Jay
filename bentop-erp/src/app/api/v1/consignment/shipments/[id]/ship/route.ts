@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { consignmentShipSchema } from "@/lib/validators/consignment";
 import { handleApiError } from "@/lib/api-error";
+import { canManageConsignment, forbiddenResponse } from "@/lib/permissions";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,8 +16,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   
     const role = (session.user as unknown as { role: string }).role;
-    if (role === "VIEWER") {
-      return Response.json({ error: { code: "FORBIDDEN", message: "Read-only role" } }, { status: 403 });
+    if (!canManageConsignment(role)) {
+      return forbiddenResponse();
     }
   
     const userId = session.user.id;
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
         _sum: { quantityOnHand: true },
       });
-      const onHand = agg._sum.quantityOnHand ?? 0;
+      let onHand = agg._sum.quantityOnHand ?? 0;
       const aggRow = await prisma.stockLevel.findFirst({
         where: {
           productVariantId: item.productVariantId,
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           batchId: null,
         },
       });
+      if (onHand === 0 && !item.batchId) {
+        onHand = aggRow?.quantityOnHand ?? 0;
+      }
       const reserved = aggRow?.quantityReserved ?? 0;
       const availableForSale = onHand - reserved;
       if (availableForSale < item.quantityShipped) {
@@ -102,6 +106,63 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           include: { batch: true },
           orderBy: { batch: { productionDate: "asc" } },
         });
+
+        if (sourceRows.length === 0 && !item.batchId) {
+          const sourceAgg = await tx.stockLevel.findFirst({
+            where: {
+              productVariantId: item.productVariantId,
+              locationId: shipment.fromLocationId,
+              batchId: null,
+            },
+          });
+
+          if (!sourceAgg || sourceAgg.quantityOnHand < item.quantityShipped) {
+            throw new Error(`Insufficient aggregate stock for ${item.productVariantId}`);
+          }
+
+          await tx.stockLevel.update({
+            where: { id: sourceAgg.id },
+            data: { quantityOnHand: { decrement: item.quantityShipped } },
+          });
+
+          const destAgg = await tx.stockLevel.findFirst({
+            where: {
+              productVariantId: item.productVariantId,
+              locationId: shipment.toLocationId,
+              batchId: null,
+            },
+          });
+          if (destAgg) {
+            await tx.stockLevel.update({
+              where: { id: destAgg.id },
+              data: { quantityOnHand: { increment: item.quantityShipped } },
+            });
+          } else {
+            await tx.stockLevel.create({
+              data: {
+                productVariantId: item.productVariantId,
+                locationId: shipment.toLocationId,
+                batchId: null,
+                quantityOnHand: item.quantityShipped,
+              },
+            });
+          }
+
+          await tx.stockMovement.create({
+            data: {
+              productVariantId: item.productVariantId,
+              batchId: null,
+              fromLocationId: shipment.fromLocationId,
+              toLocationId: shipment.toLocationId,
+              movementType: "CONSIGNMENT_OUT",
+              quantity: item.quantityShipped,
+              referenceNumber: shipment.shipmentNumber,
+              performedById: userId,
+            },
+          });
+
+          continue;
+        }
   
         for (const row of sourceRows) {
           if (remaining <= 0) break;

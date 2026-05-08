@@ -6,11 +6,47 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ConsignmentShipmentFormClient } from "@/components/consignment/consignment-shipment-form-client";
 
 export default async function NewConsignmentShipmentPage() {
-  const locations = await prisma.location.findMany({
-    where: { isActive: true },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, type: true },
-  });
+  const [locations, partners] = await Promise.all([
+    prisma.location.findMany({
+      where: { isActive: true },
+      orderBy: [{ type: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, type: true },
+    }),
+    prisma.consignmentPartner.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        contactPerson: true,
+        contactPhone: true,
+        contactEmail: true,
+        locationId: true,
+        commissionTiers: {
+          where: { isActive: true },
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            name: true,
+            minPrice: true,
+            maxPrice: true,
+            commissionRate: true,
+            sortOrder: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const partnerOptions = partners.map((partner) => ({
+    ...partner,
+    commissionTiers: partner.commissionTiers.map((tier) => ({
+      ...tier,
+      minPrice: Number(tier.minPrice),
+      maxPrice: tier.maxPrice === null ? null : Number(tier.maxPrice),
+      commissionRate: Number(tier.commissionRate),
+    })),
+  }));
 
   return (
     <div className="space-y-6">
@@ -36,7 +72,7 @@ export default async function NewConsignmentShipmentPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ConsignmentShipmentFormClient locations={locations} />
+          <ConsignmentShipmentFormClient locations={locations} partners={partnerOptions} />
         </CardContent>
       </Card>
     </div>
