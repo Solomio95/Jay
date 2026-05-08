@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -91,6 +91,12 @@ const navItems: NavItem[] = [
     title: "Settings",
     href: "/settings",
     icon: <Settings className="h-5 w-5" />,
+    children: [
+      { title: "Overview", href: "/settings" },
+      { title: "Users & Roles", href: "/settings/users" },
+      { title: "Sales Channels", href: "/settings/channels" },
+      { title: "Currency", href: "/settings/currency" },
+    ],
   },
 ];
 
@@ -135,14 +141,10 @@ export function Sidebar({
   onNavigate?: () => void;
 } = {}) {
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [collapsed, setCollapsed] = useState(false);
   const items = role === "PROMOTER" ? promoterNavItems : navItems;
   const activePathname = mounted ? pathname : "";
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") return activePathname === "/";
@@ -303,4 +305,8 @@ export function Sidebar({
       </aside>
     </TooltipProvider>
   );
+}
+
+function emptySubscribe() {
+  return () => {};
 }

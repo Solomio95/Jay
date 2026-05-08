@@ -12,8 +12,8 @@ const settingsSections = [
   {
     title: "User Management",
     description: "Manage users, roles, and permissions",
-    href: null,
-    comingSoon: true,
+    href: "/settings/users",
+    comingSoon: false,
   },
   {
     title: "Locations",
