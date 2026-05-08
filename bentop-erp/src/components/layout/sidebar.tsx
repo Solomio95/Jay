@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -135,13 +135,19 @@ export function Sidebar({
   onNavigate?: () => void;
 } = {}) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const items = role === "PROMOTER" ? promoterNavItems : navItems;
+  const activePathname = mounted ? pathname : "";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    if (href === "/promoter/sales") return pathname === href;
-    return pathname.startsWith(href);
+    if (href === "/") return activePathname === "/";
+    if (href === "/promoter/sales") return activePathname === href;
+    return activePathname.startsWith(href);
   };
 
   return (
@@ -220,11 +226,11 @@ export function Sidebar({
                               key={child.href}
                               href={child.href}
                               onClick={onNavigate}
-                              aria-current={pathname === child.href ? "page" : undefined}
+                              aria-current={activePathname === child.href ? "page" : undefined}
                               suppressHydrationWarning
                               className={cn(
                                 "flex items-center h-8 px-3 rounded-md text-sm transition-colors",
-                                pathname === child.href
+                                activePathname === child.href
                                   ? "text-sidebar-accent-foreground font-medium bg-sidebar-accent/60"
                                   : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/30"
                               )}

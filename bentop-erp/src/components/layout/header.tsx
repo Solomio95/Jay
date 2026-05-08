@@ -4,6 +4,7 @@ import { Bell, Search, LogOut, User, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -72,7 +73,9 @@ function getBreadcrumbs(pathname: string) {
 
 export function Header({ user, onMenuToggle }: HeaderProps) {
   const pathname = usePathname();
-  const breadcrumbs = getBreadcrumbs(pathname);
+  const [mounted, setMounted] = useState(false);
+  const activePathname = mounted ? pathname : "/";
+  const breadcrumbs = getBreadcrumbs(activePathname);
   const pageTitle = breadcrumbs[breadcrumbs.length - 1]?.label || "Dashboard";
   const initials = user.name
     .split(" ")
@@ -80,6 +83,10 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b bg-background px-3 md:px-6">

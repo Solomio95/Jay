@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -30,11 +31,17 @@ const promoterItems = [
 
 export function MobileBottomNav({ role }: { role?: string } = {}) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const navItems = role === "PROMOTER" ? promoterItems : items;
+  const activePathname = mounted ? pathname : "";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    if (href === "/") return activePathname === "/";
+    return activePathname.startsWith(href);
   };
 
   return (
