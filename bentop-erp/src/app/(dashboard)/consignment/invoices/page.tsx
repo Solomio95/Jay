@@ -5,6 +5,7 @@ import { CalendarDays, Download, Printer, Receipt, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -14,6 +15,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { prisma } from "@/lib/db";
+import {
+  buildConsignmentInvoiceWhere,
+  parseConsignmentInvoiceFilters,
+  toInvoiceFilterQuery,
+} from "@/lib/consignment/invoice-filters";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const INVOICE_STATUS_COLOR: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
@@ -24,8 +30,16 @@ const INVOICE_STATUS_COLOR: Record<string, "default" | "secondary" | "success" |
   VOID: "destructive",
 };
 
-export default async function ConsignmentInvoicesPage() {
-  const invoices = await prisma.consignmentInvoice.findMany({
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ConsignmentInvoicesPage({ searchParams }: PageProps) {
+  const filters = parseConsignmentInvoiceFilters((await searchParams) ?? {});
+  const where = buildConsignmentInvoiceWhere(filters);
+  const [invoices, partners] = await Promise.all([
+    prisma.consignmentInvoice.findMany({
+      where,
     include: {
       partner: { select: { name: true } },
       shipment: { select: { id: true, shipmentNumber: true } },
@@ -34,7 +48,14 @@ export default async function ConsignmentInvoicesPage() {
     },
     orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     take: 100,
-  });
+    }),
+    prisma.consignmentPartner.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const exportHref = `/api/v1/exports/consignment-invoices${toInvoiceFilterQuery(filters)}`;
 
   const totals = invoices.reduce(
     (sum, invoice) => ({
@@ -59,7 +80,7 @@ export default async function ConsignmentInvoicesPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href="/api/v1/exports/consignment-invoices">
+            <a href={exportHref}>
               <Download className="mr-2 h-4 w-4" />
               Invoices CSV
             </a>
@@ -80,6 +101,41 @@ export default async function ConsignmentInvoicesPage() {
         <Metric icon={<Wallet className="h-3.5 w-3.5" />} label="Net To Bentop" value={formatCurrency(totals.netAmount, "MYR")} />
         <Metric icon={<Wallet className="h-3.5 w-3.5" />} label="Outstanding" value={formatCurrency(outstandingAmount, "MYR")} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Filters</CardTitle>
+          <CardDescription>Filter invoice collections by partner, status, due state, date, or invoice/report text.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-3 md:grid-cols-3 lg:grid-cols-7">
+            <Input name="from" type="date" defaultValue={filters.from ?? ""} />
+            <Input name="to" type="date" defaultValue={filters.to ?? ""} />
+            <select name="partnerId" defaultValue={filters.partnerId ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All partners</option>
+              {partners.map((partner) => (
+                <option key={partner.id} value={partner.id}>{partner.name}</option>
+              ))}
+            </select>
+            <select name="status" defaultValue={filters.status ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All statuses</option>
+              <option value="DRAFT">Draft</option>
+              <option value="ISSUED">Issued</option>
+              <option value="PARTIAL_PAID">Partial paid</option>
+              <option value="PAID">Paid</option>
+              <option value="VOID">Void</option>
+            </select>
+            <select name="dueState" defaultValue={filters.dueState ?? ""} className="h-10 rounded-md border bg-background px-3 text-sm">
+              <option value="">All due states</option>
+              <option value="outstanding">Outstanding</option>
+              <option value="overdue">Overdue</option>
+              <option value="paid">Paid</option>
+            </select>
+            <Input name="search" placeholder="Invoice, report, partner" defaultValue={filters.search ?? ""} />
+            <Button type="submit">Apply</Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

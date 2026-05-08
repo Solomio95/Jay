@@ -1,16 +1,20 @@
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { csvResponse } from "@/lib/csv/response";
+import { buildConsignmentInvoiceWhere, parseConsignmentInvoiceFilters } from "@/lib/consignment/invoice-filters";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
       return Response.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
 
+    const filters = parseConsignmentInvoiceFilters(Object.fromEntries(request.nextUrl.searchParams.entries()));
     const invoices = await prisma.consignmentInvoice.findMany({
+      where: buildConsignmentInvoiceWhere(filters),
       include: {
         partner: true,
         shipment: { select: { shipmentNumber: true } },

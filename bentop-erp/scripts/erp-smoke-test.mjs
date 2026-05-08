@@ -221,6 +221,7 @@ async function main() {
     "/consignment/partners",
     "/consignment/reports",
     "/consignment/invoices",
+    "/consignment/invoices?dueState=outstanding",
     "/purchases",
     "/purchases/suppliers",
     "/purchases/orders",
