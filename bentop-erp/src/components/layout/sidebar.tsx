@@ -74,6 +74,7 @@ const navItems: NavItem[] = [
       { title: "Partners", href: "/consignment/partners" },
       { title: "Reports", href: "/consignment/reports" },
       { title: "Invoices", href: "/consignment/invoices" },
+      { title: "Collections", href: "/consignment/collections" },
     ],
   },
   {
