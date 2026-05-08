@@ -229,6 +229,7 @@ async function main() {
   ]);
 
   await smokeFirstConsignmentInvoicePrintPage(admin);
+  await smokeFirstConsignmentPartnerStatementPage(admin);
 
   await smokePages(promoter, "promoter pages", [
     "/promoter/sales",
@@ -342,6 +343,25 @@ async function smokeFirstConsignmentInvoicePrintPage(session) {
     assert(printHtml.includes("Consignment Invoice"), "print page did not render invoice document");
     assert(!printHtml.includes("Runtime Error"), "Next.js runtime error overlay detected");
     assert(!printHtml.includes("Hydration failed"), "hydration error overlay detected");
+  });
+}
+
+async function smokeFirstConsignmentPartnerStatementPage(session) {
+  await check("admin consignment partner statement page", async () => {
+    const response = await session.request("/consignment/partners");
+    assertStatus(response, [200]);
+    const html = await response.text();
+    const match = html.match(/\/consignment\/partners\/([^"/]+)\/statement/);
+    if (!match) {
+      return;
+    }
+
+    const statementResponse = await session.request(`/consignment/partners/${match[1]}/statement`);
+    assertStatus(statementResponse, [200]);
+    const statementHtml = await statementResponse.text();
+    assert(statementHtml.includes("Statement"), "partner statement page did not render");
+    assert(!statementHtml.includes("Runtime Error"), "Next.js runtime error overlay detected");
+    assert(!statementHtml.includes("Hydration failed"), "hydration error overlay detected");
   });
 }
 
