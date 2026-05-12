@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# generated database artifacts
+prisma/baseline.sql
+
 # debug
 npm-debug.log*
 yarn-debug.log*
