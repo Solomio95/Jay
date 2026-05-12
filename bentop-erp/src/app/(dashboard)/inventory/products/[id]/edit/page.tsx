@@ -43,6 +43,7 @@ export default async function EditProductPage({
     weightKg: product.weightKg ? Number(product.weightKg) : null,
     material: product.material || "",
     careInstructions: product.careInstructions || "",
+    images: Array.isArray(product.images) ? product.images.filter((image): image is string => typeof image === "string") : [],
     isActive: product.isActive,
   };
 

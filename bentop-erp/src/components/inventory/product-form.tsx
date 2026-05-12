@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Save, Trash2 } from "lucide-react";
+import { ImagePlus, Save, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,7 @@ type FormData = {
   weightKg: number | null;
   material: string;
   careInstructions: string;
+  images: string[];
   isActive: boolean;
 };
 
@@ -53,6 +54,7 @@ const emptyForm: FormData = {
   weightKg: null,
   material: "",
   careInstructions: "",
+  images: [],
   isActive: true,
 };
 
@@ -62,6 +64,7 @@ export function ProductForm({ categories, initialData }: Props) {
   const [form, setForm] = useState<FormData>(initialData || emptyForm);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const update = <K extends keyof FormData>(key: K, value: FormData[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -84,6 +87,7 @@ export function ProductForm({ categories, initialData }: Props) {
       weightKg: form.weightKg ? Number(form.weightKg) : null,
       material: form.material || undefined,
       careInstructions: form.careInstructions || undefined,
+      images: form.images,
       isActive: form.isActive,
     };
 
@@ -125,6 +129,50 @@ export function ProductForm({ categories, initialData }: Props) {
       const data = await res.json();
       setError(data.error?.message || "Failed to delete");
     }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+
+    if (form.images.length + files.length > 12) {
+      setError("A product can have up to 12 images");
+      return;
+    }
+
+    setError("");
+    setUploadingImage(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of files) {
+        const imageFormData = new FormData();
+        imageFormData.append("file", file);
+        const response = await fetch("/api/v1/uploads/product-images", {
+          method: "POST",
+          body: imageFormData,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          setError(data?.error?.message ?? "Failed to upload image");
+          return;
+        }
+        uploadedUrls.push(data.data.url);
+      }
+      update("images", [...form.images, ...uploadedUrls]);
+    } catch {
+      setError("Image upload failed. Please try again.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = (url: string) => {
+    update("images", form.images.filter((image) => image !== url));
+  };
+
+  const makePrimaryImage = (url: string) => {
+    update("images", [url, ...form.images.filter((image) => image !== url)]);
   };
 
   return (
@@ -191,6 +239,66 @@ export function ProductForm({ categories, initialData }: Props) {
             onChange={(e) => update("description", e.target.value)}
             rows={3}
           />
+        </div>
+
+        <div className="space-y-3 md:col-span-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <Label>Product Images</Label>
+              <p className="text-xs text-muted-foreground">
+                Upload product photos for catalog, stock lookup, and sales reference.
+              </p>
+            </div>
+            <div>
+              <Input
+                id="product-images"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <Button type="button" variant="outline" asChild disabled={uploadingImage}>
+                <Label htmlFor="product-images" className="cursor-pointer">
+                  <ImagePlus className="mr-2 h-4 w-4" />
+                  {uploadingImage ? "Uploading..." : "Upload Images"}
+                </Label>
+              </Button>
+            </div>
+          </div>
+
+          {form.images.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {form.images.map((url, index) => (
+                <div key={url} className="overflow-hidden rounded-md border bg-muted/20">
+                  <div className="aspect-square bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`${form.name || "Product"} image ${index + 1}`} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="flex items-center justify-between gap-1 p-2">
+                    <Button
+                      type="button"
+                      variant={index === 0 ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => makePrimaryImage(url)}
+                      disabled={index === 0}
+                      className="h-8 px-2 text-xs"
+                    >
+                      <Star className="mr-1 h-3 w-3" />
+                      {index === 0 ? "Primary" : "Set"}
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeImage(url)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed bg-muted/20 text-sm text-muted-foreground">
+              No product images uploaded yet.
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
