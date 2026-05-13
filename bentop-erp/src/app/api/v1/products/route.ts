@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
         weightKg: data.weightKg ?? null,
         material: data.material,
         careInstructions: data.careInstructions,
+        images: data.images,
         isActive: data.isActive,
       },
       include: {

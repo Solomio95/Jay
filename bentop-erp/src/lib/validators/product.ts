@@ -24,6 +24,7 @@ export const productCreateSchema = z.object({
   weightKg: z.number().positive().nullable().optional(),
   material: z.string().max(200).optional(),
   careInstructions: z.string().max(500).optional(),
+  images: z.array(z.string().min(1).max(500)).max(12).default([]),
   isActive: z.boolean().default(true),
 });
 

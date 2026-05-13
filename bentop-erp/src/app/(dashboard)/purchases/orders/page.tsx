@@ -28,9 +28,14 @@ export default async function PurchaseOrdersPage() {
           <h2 className="text-2xl font-bold tracking-tight">Purchase Orders</h2>
           <p className="text-muted-foreground">Track ordered, partial received, and completed purchasing.</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/purchases">Purchases Overview</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link href="/purchases/orders/new">New Purchase Order</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/purchases">Purchases Overview</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
