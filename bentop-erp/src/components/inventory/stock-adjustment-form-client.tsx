@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { VariantPicker, type VariantOption } from "./variant-picker";
+import { BulkVariantAdder } from "./bulk-variant-adder";
 
 type Location = { id: string; name: string; type: string };
 
@@ -53,6 +54,7 @@ export function StockAdjustmentFormClient({ locations }: { locations: Location[]
   // When adding a variant, fetch current qty at this location
   const addLine = async (v: VariantOption) => {
     if (!locationId) return;
+    if (lines.some((line) => line.variant.id === v.id)) return;
     const res = await fetch(
       `/api/v1/stock-levels?productVariantId=${v.id}&locationId=${locationId}&pageSize=5`
     );
@@ -192,6 +194,8 @@ export function StockAdjustmentFormClient({ locations }: { locations: Location[]
         <Label className="mb-2 block">Add Items</Label>
         <VariantPicker onSelect={addLine} excludeIds={lines.map((l) => l.variant.id)} />
       </div>
+
+      <BulkVariantAdder onAdd={addLine} excludeIds={lines.map((l) => l.variant.id)} />
 
       {lines.length > 0 && (
         <div className="border rounded-lg">

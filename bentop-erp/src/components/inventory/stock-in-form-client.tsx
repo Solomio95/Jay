@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { VariantPicker, type VariantOption } from "./variant-picker";
+import { BulkVariantAdder } from "./bulk-variant-adder";
 
 type Location = { id: string; name: string; type: string };
 
@@ -45,7 +46,15 @@ export function StockInFormClient({ locations }: { locations: Location[] }) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const addLine = (v: VariantOption) => {
-    setLines((prev) => [...prev, { variant: v, quantity: 1, costPerUnitMyr: 0, binLocation: "" }]);
+    setLines((prev) => {
+      const existing = prev.find((line) => line.variant.id === v.id);
+      if (existing) {
+        return prev.map((line) =>
+          line.variant.id === v.id ? { ...line, quantity: line.quantity + 1 } : line
+        );
+      }
+      return [...prev, { variant: v, quantity: 1, costPerUnitMyr: 0, binLocation: "" }];
+    });
   };
 
   const updateLine = (idx: number, patch: Partial<Line>) => {
@@ -180,6 +189,8 @@ export function StockInFormClient({ locations }: { locations: Location[] }) {
         <Label className="mb-2 block">Add Items *</Label>
         <VariantPicker onSelect={addLine} excludeIds={lines.map((l) => l.variant.id)} />
       </div>
+
+      <BulkVariantAdder onAdd={addLine} excludeIds={lines.map((l) => l.variant.id)} />
 
       {lines.length === 0 ? (
         <div className="border rounded-lg py-12 text-center text-muted-foreground">
