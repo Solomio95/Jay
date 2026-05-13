@@ -77,6 +77,8 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
     setDialogOpen(true);
   };
 
+  const editingRootCategory = editing ? !editing.parentId : false;
+
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -159,7 +161,7 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
     categories.filter((c) => c.parentId === parentId);
 
   const renderTree = (parentId: string | null, depth = 0): React.ReactNode => {
-    const nodes = getChildren(parentId);
+    const nodes = getChildren(parentId).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
     if (nodes.length === 0 && depth === 0) {
       return (
         <div className="text-center py-8 text-muted-foreground">
@@ -199,6 +201,11 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">{cat.name}</span>
+                {!cat.parentId && (
+                  <Badge variant="outline" className="text-xs">
+                    Root
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground font-mono">{cat.slug}</span>
                 <Badge variant="secondary" className="text-xs">
                   {cat.productCount} products
@@ -208,11 +215,16 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{cat.description}</p>
               )}
             </div>
-            <div className="flex items-center gap-1 opacity-0 hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+            <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" onClick={() => openCreate(cat.id)} title="Add subcategory">
                 <Plus className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="ghost" onClick={() => openEdit(cat)} title="Edit">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => openEdit(cat)}
+                title={cat.parentId ? "Edit category" : "Edit root category"}
+              >
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
@@ -249,9 +261,13 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Category" : "New Category"}</DialogTitle>
+            <DialogTitle>
+              {editing ? (editingRootCategory ? "Edit Root Category" : "Edit Category") : "New Category"}
+            </DialogTitle>
             <DialogDescription>
-              {editing ? "Update category details." : "Add a new category to organize products."}
+              {editing
+                ? "Update category details, including whether it stays as a root category."
+                : "Add a new category to organize products."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -281,6 +297,9 @@ export function CategoryManagerClient({ initialCategories, rootCategoryIds }: Pr
             </div>
             <div className="space-y-2">
               <Label htmlFor="parent">Parent Category</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose None to keep this category at the root level.
+              </p>
               <Select
                 value={form.parentId || "none"}
                 onValueChange={(v) => setForm({ ...form, parentId: v === "none" ? "" : v })}

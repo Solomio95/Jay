@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { Plus, FolderTree, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FolderTree } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CategoryManagerClient } from "@/components/inventory/category-manager-client";
