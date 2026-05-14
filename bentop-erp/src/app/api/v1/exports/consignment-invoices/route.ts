@@ -5,6 +5,23 @@ import { handleApiError } from "@/lib/api-error";
 import { csvResponse } from "@/lib/csv/response";
 import { buildConsignmentInvoiceWhere, parseConsignmentInvoiceFilters } from "@/lib/consignment/invoice-filters";
 
+const CONSIGNMENT_INVOICE_EXPORT_HEADERS = [
+  "invoiceNumber",
+  "status",
+  "partnerName",
+  "shipmentNumber",
+  "reportNumber",
+  "periodStart",
+  "periodEnd",
+  "invoiceDate",
+  "dueDate",
+  "grossAmount",
+  "commissionAmount",
+  "netAmount",
+  "paidAmount",
+  "outstandingAmount",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -44,7 +61,8 @@ export async function GET(request: NextRequest) {
           paidAmount: paidAmount.toFixed(2),
           outstandingAmount: Math.max(0, Number(invoice.netAmount) - paidAmount).toFixed(2),
         };
-      })
+      }),
+      CONSIGNMENT_INVOICE_EXPORT_HEADERS
     );
   } catch (error) {
     return handleApiError(error);

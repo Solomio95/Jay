@@ -3,6 +3,20 @@ import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { csvResponse } from "@/lib/csv/response";
 
+const PRODUCT_EXPORT_HEADERS = [
+  "productName",
+  "parentSku",
+  "categoryName",
+  "sku",
+  "barcode",
+  "size",
+  "color",
+  "sellingPriceMyr",
+  "baseCostMyr",
+  "additionalCostMyr",
+  "active",
+];
+
 export async function GET() {
   try {
     const session = await auth();
@@ -29,7 +43,8 @@ export async function GET() {
         baseCostMyr: Number(variant.product.baseCostMyr).toFixed(2),
         additionalCostMyr: Number(variant.additionalCost).toFixed(2),
         active: variant.isActive,
-      }))
+      })),
+      PRODUCT_EXPORT_HEADERS
     );
   } catch (error) {
     return handleApiError(error);

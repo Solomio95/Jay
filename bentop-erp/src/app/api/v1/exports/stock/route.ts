@@ -4,6 +4,24 @@ import { auth } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-error";
 import { csvResponse } from "@/lib/csv/response";
 
+const STOCK_EXPORT_HEADERS = [
+  "locationName",
+  "locationType",
+  "productName",
+  "parentSku",
+  "sku",
+  "barcode",
+  "category",
+  "size",
+  "color",
+  "onHand",
+  "reserved",
+  "available",
+  "reorderPoint",
+  "reorderQuantity",
+  "binLocation",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -39,7 +57,8 @@ export async function GET(request: NextRequest) {
         reorderPoint: row.reorderPoint,
         reorderQuantity: row.reorderQuantity,
         binLocation: row.binLocation,
-      }))
+      })),
+      STOCK_EXPORT_HEADERS
     );
   } catch (error) {
     return handleApiError(error);

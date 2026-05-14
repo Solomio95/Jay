@@ -6,6 +6,22 @@ import { canViewReports, forbiddenResponse } from "@/lib/permissions";
 import { getConsignmentReport } from "@/lib/reports/consignment";
 import { toConsignmentReportCsvRows } from "@/lib/reports/export";
 
+const CONSIGNMENT_REPORT_EXPORT_HEADERS = [
+  "partnerName",
+  "locationName",
+  "shipments",
+  "shippedUnits",
+  "soldUnits",
+  "returnedUnits",
+  "sellThroughPct",
+  "grossSalesMyr",
+  "commissionMyr",
+  "netPayableMyr",
+  "outstandingMyr",
+  "costMyr",
+  "grossProfitMyr",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -28,7 +44,11 @@ export async function GET(request: NextRequest) {
       productVariantId: sp.get("productVariantId"),
     });
 
-    return csvResponse(`bentop-consignment-report-${dateStamp()}.csv`, toConsignmentReportCsvRows(data));
+    return csvResponse(
+      `bentop-consignment-report-${dateStamp()}.csv`,
+      toConsignmentReportCsvRows(data),
+      CONSIGNMENT_REPORT_EXPORT_HEADERS
+    );
   } catch (error) {
     return handleApiError(error);
   }

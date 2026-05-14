@@ -26,4 +26,8 @@ describe("csv helpers", () => {
       },
     ]);
   });
+
+  it("keeps headers when exporting an empty result set", () => {
+    assert.equal(toCsv([], ["sku", "productName", "available"]), "sku,productName,available");
+  });
 });

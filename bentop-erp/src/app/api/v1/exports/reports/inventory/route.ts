@@ -6,6 +6,22 @@ import { canViewReports, forbiddenResponse } from "@/lib/permissions";
 import { toInventoryReportCsvRows } from "@/lib/reports/export";
 import { getInventoryReport } from "@/lib/reports/inventory";
 
+const INVENTORY_REPORT_EXPORT_HEADERS = [
+  "locationName",
+  "locationType",
+  "productName",
+  "parentSku",
+  "sku",
+  "categoryName",
+  "size",
+  "color",
+  "onHand",
+  "reserved",
+  "available",
+  "unitCost",
+  "totalValue",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -24,7 +40,11 @@ export async function GET(request: NextRequest) {
       search: sp.get("search"),
     });
 
-    return csvResponse(`bentop-inventory-report-${dateStamp()}.csv`, toInventoryReportCsvRows(data));
+    return csvResponse(
+      `bentop-inventory-report-${dateStamp()}.csv`,
+      toInventoryReportCsvRows(data),
+      INVENTORY_REPORT_EXPORT_HEADERS
+    );
   } catch (error) {
     return handleApiError(error);
   }

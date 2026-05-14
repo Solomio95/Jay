@@ -73,7 +73,12 @@ export async function GET(request: NextRequest) {
     if (!locationId) {
       const locationScope = stockLocationScopeForUser(permissionUser);
       if (locationScope !== "all") {
-        if (locationScope.length === 0) return forbiddenResponse();
+        if (locationScope.length === 0) {
+          return Response.json({
+            data: [],
+            pagination: { total: 0, page, pageSize, totalPages: 0 },
+          });
+        }
         where.locationId = { in: [...locationScope] };
       }
     }

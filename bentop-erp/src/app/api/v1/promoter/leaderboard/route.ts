@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
     });
-    if (!currentUser || currentUser.role !== "PROMOTER" || !currentUser.defaultLocationId) {
+    if (!currentUser || currentUser.role !== "PROMOTER") {
       return Response.json(
         { error: { code: "FORBIDDEN", message: "Promoter access required" } },
         { status: 403 },
@@ -26,6 +26,12 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const month = url.searchParams.get("month") ?? formatMonth(new Date());
     const { start, end } = getMonthRange(month);
+
+    if (!currentUser.defaultLocationId) {
+      return Response.json({
+        data: { month, group: null, rows: [] },
+      });
+    }
 
     const group = await prisma.leaderboardGroup.findFirst({
       where: {
