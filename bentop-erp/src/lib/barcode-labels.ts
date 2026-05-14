@@ -27,8 +27,8 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
   }
 
   const pdf = await PDFDocument.create();
-  const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const regularFont = await pdf.embedFont(StandardFonts.TimesRoman);
+  const boldFont = await pdf.embedFont(StandardFonts.TimesRomanBold);
 
   for (const label of labels) {
     const copies = normalizeCopies(label.copies);
@@ -51,26 +51,26 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
 
       page.drawText("Bentop Collection", {
         x: marginX,
-        y: BARCODE_LABEL_HEIGHT_PT - 9,
-        size: 6.2,
+        y: BARCODE_LABEL_HEIGHT_PT - 14,
+        size: 14,
         font: boldFont,
         color: black,
       });
 
-      drawLabelText(page, `Artical No: ${label.articleNo}`, marginX, 49, regularFont, black);
-      drawLabelText(page, `Size: ${label.size}`, marginX, 41.5, regularFont, black);
-      drawLabelText(page, `Colour: ${label.colour}`, marginX, 34, regularFont, black);
+      drawLabelText(page, `Article No: ${label.articleNo}`, marginX, 43, regularFont, black);
+      drawLabelText(page, `Size: ${label.size}`, marginX, 31, regularFont, black);
+      drawLabelText(page, `Colour: ${label.colour}`, marginX, 19, regularFont, black);
 
       const imageWidth = BARCODE_LABEL_WIDTH_PT - marginX * 2;
-      const imageHeight = 20;
+      const imageHeight = 9;
       page.drawImage(barcodeImage, {
         x: marginX,
-        y: 10,
+        y: 6,
         width: imageWidth,
         height: imageHeight,
       });
 
-      drawCenteredText(page, label.barcode!.trim(), 4, 5, regularFont, muted);
+      drawCenteredText(page, label.barcode!.trim(), 1.5, 4, regularFont, muted);
     }
   }
 
@@ -93,7 +93,7 @@ function drawLabelText(
   page.drawText(truncateForLabel(text, 34), {
     x,
     y,
-    size: 5.8,
+    size: 12,
     font,
     color,
   });
