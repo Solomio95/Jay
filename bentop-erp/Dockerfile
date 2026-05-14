@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:20-bullseye-slim AS base
 
 # Install dependencies only
 FROM base AS deps
@@ -21,8 +21,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    chown -R nextjs:nodejs /app
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

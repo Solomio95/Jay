@@ -18,15 +18,15 @@ services:
 
   app:
     build:
-      context: ./bentop-erp
+      context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://bentop:bentop_secret@db:5432/bentop_erp?schema=public
-      AUTH_SECRET: bentop-erp-production-secret-change-me
-      AUTH_URL: http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
