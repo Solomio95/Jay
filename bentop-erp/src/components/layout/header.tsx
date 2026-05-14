@@ -27,6 +27,7 @@ type HeaderProps = {
 
 const pathLabels: Record<string, string> = {
   "/": "Dashboard",
+  "/profile": "Profile",
   "/inventory": "Inventory",
   "/inventory/products": "Products",
   "/inventory/products/new": "New Product",
@@ -170,9 +171,11 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

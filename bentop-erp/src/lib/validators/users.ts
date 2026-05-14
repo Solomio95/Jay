@@ -47,3 +47,9 @@ export const userUpdateSchema = z
       });
     }
   });
+
+export const profileUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  phone: optionalText(40),
+  department: optionalText(100),
+});
