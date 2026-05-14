@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
     children: [
       { title: "Overview", href: "/inventory" },
       { title: "Products", href: "/inventory/products" },
+      { title: "Barcode Labels", href: "/inventory/barcodes" },
       { title: "Categories", href: "/inventory/categories" },
       { title: "Locations", href: "/inventory/locations" },
       { title: "Stock Levels", href: "/inventory/stock" },
