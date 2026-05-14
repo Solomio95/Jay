@@ -60,10 +60,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
+        const latestUser = token.id
+          ? await prisma.user.findUnique({
+              where: { id: token.id as string },
+              select: {
+                email: true,
+                name: true,
+                role: true,
+                defaultLocationId: true,
+              },
+            })
+          : null;
+
         (session.user as unknown as Record<string, unknown>).id = token.id as string;
-        (session.user as unknown as Record<string, unknown>).role = token.role as string;
+        session.user.name = latestUser?.name ?? session.user.name;
+        session.user.email = latestUser?.email ?? session.user.email;
+        (session.user as unknown as Record<string, unknown>).role =
+          latestUser?.role ?? (token.role as string);
         (session.user as unknown as Record<string, unknown>).defaultLocationId =
-          token.defaultLocationId as string | null | undefined;
+          latestUser?.defaultLocationId ?? (token.defaultLocationId as string | null | undefined);
       }
       return session;
     },
