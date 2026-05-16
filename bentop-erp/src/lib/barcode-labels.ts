@@ -8,9 +8,9 @@ export const BARCODE_LABEL_HEIGHT_PT = 2.5 * CM_TO_PT;
 
 const LABEL_MARGIN_X = 5;
 const LABEL_TEXT_WIDTH_PT = BARCODE_LABEL_WIDTH_PT - LABEL_MARGIN_X * 2;
-const HEADER_FONT_SIZE = 10;
-const BODY_FONT_SIZE = 8.5;
-const BARCODE_VALUE_FONT_SIZE = 4;
+const HEADER_FONT_SIZE = 7.5;
+const BODY_FONT_SIZE = 6.2;
+const BARCODE_VALUE_FONT_SIZE = 3;
 
 export type BarcodeLabelInput = {
   articleNo: string;
@@ -56,26 +56,26 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
 
       page.drawText(fitTextToWidth("Bentop Collection", boldFont, HEADER_FONT_SIZE, LABEL_TEXT_WIDTH_PT), {
         x: LABEL_MARGIN_X,
-        y: BARCODE_LABEL_HEIGHT_PT - 12,
+        y: BARCODE_LABEL_HEIGHT_PT - 10,
         size: HEADER_FONT_SIZE,
         font: boldFont,
         color: black,
       });
 
-      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 49, regularFont, black);
-      drawLabelText(page, `Size: ${label.size}`, LABEL_MARGIN_X, 39, regularFont, black);
-      drawLabelText(page, `Colour: ${label.colour}`, LABEL_MARGIN_X, 29, regularFont, black);
+      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 51, regularFont, black);
+      drawLabelText(page, `Size: ${label.size}`, LABEL_MARGIN_X, 43, regularFont, black);
+      drawLabelText(page, `Colour: ${label.colour}`, LABEL_MARGIN_X, 35, regularFont, black);
 
       const imageWidth = LABEL_TEXT_WIDTH_PT;
-      const imageHeight = 17;
+      const imageHeight = 20;
       page.drawImage(barcodeImage, {
         x: LABEL_MARGIN_X,
-        y: 8,
+        y: 10,
         width: imageWidth,
         height: imageHeight,
       });
 
-      drawCenteredText(page, label.barcode!.trim(), 3, BARCODE_VALUE_FONT_SIZE, regularFont, muted);
+      drawCenteredText(page, label.barcode!.trim(), 5, BARCODE_VALUE_FONT_SIZE, regularFont, muted);
     }
   }
 
