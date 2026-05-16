@@ -6,6 +6,12 @@ const CM_TO_PT = 28.3464566929;
 export const BARCODE_LABEL_WIDTH_PT = 3.5 * CM_TO_PT;
 export const BARCODE_LABEL_HEIGHT_PT = 2.5 * CM_TO_PT;
 
+const LABEL_MARGIN_X = 5;
+const LABEL_TEXT_WIDTH_PT = BARCODE_LABEL_WIDTH_PT - LABEL_MARGIN_X * 2;
+const HEADER_FONT_SIZE = 10;
+const BODY_FONT_SIZE = 8.5;
+const BARCODE_VALUE_FONT_SIZE = 4;
+
 export type BarcodeLabelInput = {
   articleNo: string;
   size: string;
@@ -45,32 +51,31 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
       });
       const barcodeImage = await pdf.embedPng(barcodePng);
 
-      const marginX = 5;
       const black = rgb(0.05, 0.05, 0.05);
       const muted = rgb(0.25, 0.25, 0.25);
 
-      page.drawText("Bentop Collection", {
-        x: marginX,
-        y: BARCODE_LABEL_HEIGHT_PT - 14,
-        size: 14,
+      page.drawText(fitTextToWidth("Bentop Collection", boldFont, HEADER_FONT_SIZE, LABEL_TEXT_WIDTH_PT), {
+        x: LABEL_MARGIN_X,
+        y: BARCODE_LABEL_HEIGHT_PT - 12,
+        size: HEADER_FONT_SIZE,
         font: boldFont,
         color: black,
       });
 
-      drawLabelText(page, `Article No: ${label.articleNo}`, marginX, 43, regularFont, black);
-      drawLabelText(page, `Size: ${label.size}`, marginX, 31, regularFont, black);
-      drawLabelText(page, `Colour: ${label.colour}`, marginX, 19, regularFont, black);
+      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 49, regularFont, black);
+      drawLabelText(page, `Size: ${label.size}`, LABEL_MARGIN_X, 39, regularFont, black);
+      drawLabelText(page, `Colour: ${label.colour}`, LABEL_MARGIN_X, 29, regularFont, black);
 
-      const imageWidth = BARCODE_LABEL_WIDTH_PT - marginX * 2;
-      const imageHeight = 9;
+      const imageWidth = LABEL_TEXT_WIDTH_PT;
+      const imageHeight = 17;
       page.drawImage(barcodeImage, {
-        x: marginX,
-        y: 6,
+        x: LABEL_MARGIN_X,
+        y: 8,
         width: imageWidth,
         height: imageHeight,
       });
 
-      drawCenteredText(page, label.barcode!.trim(), 1.5, 4, regularFont, muted);
+      drawCenteredText(page, label.barcode!.trim(), 3, BARCODE_VALUE_FONT_SIZE, regularFont, muted);
     }
   }
 
@@ -90,10 +95,10 @@ function drawLabelText(
   font: PDFFont,
   color: RGB
 ) {
-  page.drawText(truncateForLabel(text, 34), {
+  page.drawText(fitTextToWidth(text, font, BODY_FONT_SIZE, LABEL_TEXT_WIDTH_PT), {
     x,
     y,
-    size: 12,
+    size: BODY_FONT_SIZE,
     font,
     color,
   });
@@ -107,7 +112,7 @@ function drawCenteredText(
   font: PDFFont,
   color: RGB
 ) {
-  const safeText = truncateForLabel(text, 38);
+  const safeText = fitTextToWidth(text, font, size, LABEL_TEXT_WIDTH_PT);
   const textWidth = font.widthOfTextAtSize(safeText, size);
   page.drawText(safeText, {
     x: Math.max(3, (BARCODE_LABEL_WIDTH_PT - textWidth) / 2),
@@ -118,7 +123,16 @@ function drawCenteredText(
   });
 }
 
-function truncateForLabel(text: string, maxLength: number) {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3)}...`;
+function fitTextToWidth(text: string, font: PDFFont, size: number, maxWidth: number) {
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+
+  const suffix = "...";
+  let end = text.length - 1;
+  while (end > 0) {
+    const candidate = `${text.slice(0, end)}${suffix}`;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) return candidate;
+    end -= 1;
+  }
+
+  return suffix;
 }
