@@ -10,6 +10,7 @@ const LABEL_MARGIN_X = 5;
 const LABEL_TEXT_WIDTH_PT = BARCODE_LABEL_WIDTH_PT - LABEL_MARGIN_X * 2;
 const HEADER_FONT_SIZE = 6.5;
 const ARTICLE_FONT_SIZE = 4.6;
+const ARTICLE_MIN_FONT_SIZE = 2.4;
 const BODY_FONT_SIZE = 5.5;
 const BARCODE_VALUE_FONT_SIZE = 2.8;
 
@@ -63,7 +64,16 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
         color: black,
       });
 
-      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 52, regularFont, black, ARTICLE_FONT_SIZE);
+      drawShrunkLabelText(
+        page,
+        `Article No: ${label.articleNo}`,
+        LABEL_MARGIN_X,
+        52,
+        regularFont,
+        black,
+        ARTICLE_FONT_SIZE,
+        ARTICLE_MIN_FONT_SIZE
+      );
       drawLabelText(page, `Size: ${label.size}    Colour: ${label.colour}`, LABEL_MARGIN_X, 44, regularFont, black);
 
       const imageWidth = LABEL_TEXT_WIDTH_PT;
@@ -97,6 +107,30 @@ function drawLabelText(
   size = BODY_FONT_SIZE
 ) {
   page.drawText(fitTextToWidth(text, font, size, LABEL_TEXT_WIDTH_PT), {
+    x,
+    y,
+    size,
+    font,
+    color,
+  });
+}
+
+function drawShrunkLabelText(
+  page: PDFPage,
+  text: string,
+  x: number,
+  y: number,
+  font: PDFFont,
+  color: RGB,
+  maxSize: number,
+  minSize: number
+) {
+  const textWidth = font.widthOfTextAtSize(text, maxSize);
+  const size = textWidth <= LABEL_TEXT_WIDTH_PT
+    ? maxSize
+    : Math.max(minSize, (maxSize * LABEL_TEXT_WIDTH_PT) / textWidth);
+
+  page.drawText(text, {
     x,
     y,
     size,
