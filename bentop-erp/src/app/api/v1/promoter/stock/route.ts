@@ -56,6 +56,18 @@ export async function GET(request: Request) {
       temporaryLocations: user.temporaryLocations,
     });
 
+    if (allowedLocationIds.length === 0) {
+      return Response.json({
+        data: {
+          currentLocationId: null,
+          currentLocationRows: [],
+          otherLocationRows: [],
+          products: [],
+          promotions: [],
+        },
+      });
+    }
+
     if (!requestedLocationId || !allowedLocationIds.includes(requestedLocationId)) {
       return Response.json(
         { error: { code: "FORBIDDEN", message: "Location is not allowed" } },
