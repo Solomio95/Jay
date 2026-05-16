@@ -8,10 +8,10 @@ export const BARCODE_LABEL_HEIGHT_PT = 2.5 * CM_TO_PT;
 
 const LABEL_MARGIN_X = 5;
 const LABEL_TEXT_WIDTH_PT = BARCODE_LABEL_WIDTH_PT - LABEL_MARGIN_X * 2;
-const HEADER_FONT_SIZE = 7.5;
-const ARTICLE_FONT_SIZE = 5.2;
-const BODY_FONT_SIZE = 6.2;
-const BARCODE_VALUE_FONT_SIZE = 3;
+const HEADER_FONT_SIZE = 6.5;
+const ARTICLE_FONT_SIZE = 4.6;
+const BODY_FONT_SIZE = 5.5;
+const BARCODE_VALUE_FONT_SIZE = 2.8;
 
 export type BarcodeLabelInput = {
   articleNo: string;
@@ -44,8 +44,8 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
       const barcodePng = await bwipjs.toBuffer({
         bcid: "code128",
         text: label.barcode!.trim(),
-        scale: 3,
-        height: 8,
+        scale: 4,
+        height: 9,
         includetext: false,
         paddingwidth: 0,
         paddingheight: 0,
@@ -57,26 +57,25 @@ export async function buildBarcodeLabelPdf(labels: BarcodeLabelInput[]) {
 
       page.drawText(fitTextToWidth("Bentop Collection", boldFont, HEADER_FONT_SIZE, LABEL_TEXT_WIDTH_PT), {
         x: LABEL_MARGIN_X,
-        y: BARCODE_LABEL_HEIGHT_PT - 10,
+        y: BARCODE_LABEL_HEIGHT_PT - 9,
         size: HEADER_FONT_SIZE,
         font: boldFont,
         color: black,
       });
 
-      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 51, regularFont, black, ARTICLE_FONT_SIZE);
-      drawLabelText(page, `Size: ${label.size}`, LABEL_MARGIN_X, 43, regularFont, black);
-      drawLabelText(page, `Colour: ${label.colour}`, LABEL_MARGIN_X, 35, regularFont, black);
+      drawLabelText(page, `Article No: ${label.articleNo}`, LABEL_MARGIN_X, 52, regularFont, black, ARTICLE_FONT_SIZE);
+      drawLabelText(page, `Size: ${label.size}    Colour: ${label.colour}`, LABEL_MARGIN_X, 44, regularFont, black);
 
       const imageWidth = LABEL_TEXT_WIDTH_PT;
-      const imageHeight = 20;
+      const imageHeight = 26;
       page.drawImage(barcodeImage, {
         x: LABEL_MARGIN_X,
-        y: 10,
+        y: 12,
         width: imageWidth,
         height: imageHeight,
       });
 
-      drawCenteredText(page, label.barcode!.trim(), 5, BARCODE_VALUE_FONT_SIZE, regularFont, muted);
+      drawCenteredText(page, label.barcode!.trim(), 7, BARCODE_VALUE_FONT_SIZE, regularFont, muted);
     }
   }
 
