@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: bentop_secret
       POSTGRES_DB: bentop_erp
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,6 +27,11 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://bentop:bentop_secret@db:5432/bentop_erp?schema=public
+      AUTH_SECRET: bentop-erp-production-secret-change-me
+      AUTH_URL: https://erp.bentoperp.com
+      NEXTAUTH_URL: https://erp.bentoperp.com
+      NEXT_PUBLIC_AUTH_URL: https://erp.bentoperp.com
+      AUTH_TRUST_HOST: https://erp.bentoperp.com
     depends_on:
       db:
         condition: service_healthy

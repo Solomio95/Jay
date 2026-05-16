@@ -12,6 +12,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ENV DOCKER_BUILD=1
 RUN npx prisma generate
 RUN npm run build
 
@@ -30,6 +31,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
