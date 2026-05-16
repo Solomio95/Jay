@@ -289,6 +289,7 @@ export function Sidebar({
         {/* Collapse toggle */}
         <div className="border-t border-sidebar-border p-2">
           <button
+            suppressHydrationWarning
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="flex items-center justify-center w-full h-9 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
